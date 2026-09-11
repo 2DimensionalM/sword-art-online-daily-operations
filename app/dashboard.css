@@ -276,6 +276,7 @@
 }
 
 .discipline-kpi {
+  position: relative;
   display: grid;
   grid-template-columns: minmax(220px, .76fr) minmax(260px, 1.24fr);
   color: var(--color-paper);
@@ -284,6 +285,13 @@
   outline: 4px solid var(--color-paper);
   box-shadow: 8px 9px 0 var(--color-ink);
   overflow: hidden;
+}
+
+/* Trend callouts intentionally cross the KPI frame; only the active card may escape it. */
+.discipline-kpi:has(.metric-trend circle:hover),
+.discipline-kpi:has(.metric-trend circle:focus) {
+  z-index: 10;
+  overflow: visible;
 }
 
 .in-time-kpi { transform: rotate(-.35deg); }
@@ -476,7 +484,7 @@
 .recovery-score small { color: var(--color-muted); }
 .sleep-rhythm-strip { position: relative; display: flex; align-items: end; gap: 6px; min-height: 150px; padding: 27px 21px 14px; background: repeating-linear-gradient(0deg, transparent 0 35px, rgb(17 18 15 / 10%) 35px 37px); }
 .sleep-rhythm-strip i { position: relative; flex: 1; min-width: 5px; max-width: 38px; min-height: 2px; background: var(--dashboard-purple); border: 2px solid var(--color-ink); box-shadow: 3px 4px 0 var(--color-ink); transition: transform 140ms ease, background 140ms ease; }
-.sleep-rhythm-strip i:hover { background: var(--dashboard-blue); transform: translateY(-5px); }
+.sleep-rhythm-strip i:hover { z-index: 4; background: var(--dashboard-blue); transform: translateY(-5px); }
 .sleep-sma-overlay { position: absolute; z-index: 2; overflow: visible; pointer-events: none; }
 .sleep-sma-overlay polyline { fill: none; stroke-linecap: square; stroke-linejoin: bevel; vector-effect: non-scaling-stroke; }
 .sleep-sma-keyline { stroke: var(--color-ink); stroke-width: 4px; }
