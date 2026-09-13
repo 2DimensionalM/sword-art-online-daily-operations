@@ -1723,7 +1723,7 @@ export default function Home() {
     if (!menuOpen) return;
     setMenuOpen(false);
     setMenuClosing(true);
-    window.setTimeout(() => setMenuClosing(false), 560);
+    window.setTimeout(() => setMenuClosing(false), 800);
   };
   const submitSleepRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -1930,12 +1930,19 @@ export default function Home() {
     <div className="persona-fx" aria-hidden="true"><div className="background-tv"><span className="background-tv-antenna" /><span className="background-tv-screen"><i /><b>04</b></span><span className="background-tv-controls"><i /><i /><b /></span></div><span className="fx-rainbow" /><span className="fx-dots" /><strong>MOVE! / TRUTH / NOW!</strong></div>
     <button className={`menu-trigger ${menuOpen ? 'is-open' : ''}`} onClick={() => { if (menuOpen) closeMenu(); else { setMenuClosing(false); setMenuOpen(true); } }} aria-label={menuOpen ? '关闭主菜单' : '打开主菜单'}><span /><span /><span /><strong>MENU</strong></button>
 
-    <aside className={`game-menu ${menuOpen ? 'is-open' : ''} ${menuClosing ? 'is-closing' : ''}`} aria-hidden={!menuOpen}>
+    <aside className={`game-menu ${menuOpen ? 'is-open' : ''} ${menuClosing ? 'is-closing' : ''}`} aria-hidden={!menuOpen} data-active-title={activeNav.title}>
+      <div className="menu-backdrop" aria-hidden="true"><span className="menu-rings" /><span className="menu-spectrum" /><span className="menu-stars"><i /><i /><i /></span></div>
       <button className="menu-close" onClick={closeMenu}>×</button>
-      <div className="menu-title"><span>MAIN MENU</span><strong>SELECT<br />YOUR MOVE</strong><small>选择下一步行动</small></div>
-      <nav>{navItems.map((item) => <button key={item.id} className={view === item.id ? 'active' : ''} onClick={() => navigateTo(item.id)}><span className="menu-no">{item.no}</span><i>{item.mark}</i><div><strong>{item.title}</strong><small>{item.subtitle}</small></div><em>›</em></button>)}</nav>
-      <footer><span>{settings.username}</span><i />SWORD ART ONLINE</footer>
-      <button className={`theme-toggle theme-toggle-${theme}`} onClick={() => setTheme((current) => current === 'day' ? 'night' : 'day')}><span className="theme-orb"><i /><b /></span><strong>{theme === 'day' ? 'NIGHT MODE' : 'DAY MODE'}</strong><small>{theme === 'day' ? '夜间模式' : '白天模式'}</small></button>
+      <div className="menu-title"><span>MAIN MENU</span><strong>SELECT<br />YOUR MOVE</strong></div>
+      <nav>{navItems.map((item) => <button key={item.id} className={view === item.id ? 'active' : ''} aria-current={view === item.id ? 'page' : undefined} onClick={() => navigateTo(item.id)}><strong>{item.title}</strong></button>)}</nav>
+      <footer>SWORD ART ONLINE · {settings.username}</footer>
+      <button
+        className={`theme-toggle theme-toggle-${theme}`}
+        aria-label={theme === 'day' ? '切换到夜间模式' : '切换到白天模式'}
+        onClick={() => setTheme((current) => current === 'day' ? 'night' : 'day')}
+      >
+        <span className={`menu-theme-icon menu-theme-icon-${theme === 'day' ? 'night' : 'day'}`} aria-hidden="true"><i /><b /></span>
+      </button>
     </aside>
     {(menuOpen || menuClosing) && <button className={`menu-scrim ${menuClosing ? 'is-closing' : ''}`} aria-label="关闭菜单" onClick={closeMenu} />}
 
