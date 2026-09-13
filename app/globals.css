@@ -1418,6 +1418,24 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
   clip-path:polygon(0 44%,64% 30%,68% 4%,98% 4%,98% 96%,68% 96%,64% 62%,0 56%);
   transition:transform .2s var(--ease-pop),background .1s;
 }
+.game-menu .theme-toggle-night {
+  filter:drop-shadow(5px 5px 0 #05060b) drop-shadow(-2px -2px 0 rgba(255,253,242,.78));
+}
+.game-menu .theme-toggle-night::before {
+  background:linear-gradient(90deg,#111522 0 64%,#263a78 64% 100%);
+}
+.menu-theme-switch {
+  position:absolute;
+  z-index:1;
+  left:50%;
+  top:50%;
+  width:50px;
+  height:50px;
+  overflow:hidden;
+  transform:translate(calc(-50% - 2px),-50%) skewX(8deg);
+  transform-origin:center;
+  transition:transform .25s var(--ease-pop);
+}
 .menu-theme-icon {
   position:absolute;
   z-index:1;
@@ -1426,14 +1444,13 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
   top:50%;
   width:44px;
   height:44px;
-  transform:translate(calc(-50% - 2px),-50%) skewX(8deg);
+  transform:translate(-50%,-50%);
   transform-origin:center;
-  transition:transform .25s var(--ease-pop);
 }
 .menu-theme-icon i,.menu-theme-icon b { position:absolute; display:block; }
 .menu-theme-icon-night i {
   inset:4px 2px 2px 4px;
-  background:var(--ink);
+  background:var(--yellow);
   border:3px solid var(--paper);
   border-radius:50%;
 }
@@ -1443,7 +1460,7 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
   right:-4px;
   width:32px;
   height:33px;
-  background:var(--yellow);
+  background:#263a78;
   border-radius:50%;
 }
 .menu-theme-icon-day b {
@@ -1475,8 +1492,20 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
   background:var(--yellow);
   transform:none;
 }
-.game-menu .theme-toggle:hover .menu-theme-icon,
-.game-menu .theme-toggle:focus-visible .menu-theme-icon { transform:translate(calc(-50% - 2px),-50%) skewX(8deg) scale(1.12); }
+.game-menu .theme-toggle-night:hover::before,
+.game-menu .theme-toggle-night:focus-visible::before { background:linear-gradient(90deg,#111522 0 64%,#263a78 64% 100%); }
+.game-menu .theme-toggle-night:hover,
+.game-menu .theme-toggle-night:focus-visible {
+  filter:drop-shadow(7px 7px 0 var(--yellow)) drop-shadow(-2px -2px 0 var(--paper));
+}
+.game-menu .theme-toggle:hover .menu-theme-switch,
+.game-menu .theme-toggle:focus-visible .menu-theme-switch { transform:translate(calc(-50% - 2px),-50%) skewX(8deg) scale(1.1); }
+.game-menu .theme-toggle-day .menu-theme-icon-day { animation:menuSunRise .46s .1s cubic-bezier(.2,.84,.2,1) both; }
+.game-menu .theme-toggle-day .menu-theme-icon-night { animation:menuMoonLift .32s cubic-bezier(.55,.02,.34,1) both; }
+.game-menu .theme-toggle-day .menu-theme-icon-night i { background:var(--ink); }
+.game-menu .theme-toggle-day .menu-theme-icon-night b { background:var(--yellow); }
+.game-menu .theme-toggle-night .menu-theme-icon-day { animation:menuSunDrop .46s cubic-bezier(.46,0,.3,1) both; }
+.game-menu .theme-toggle-night .menu-theme-icon-night { animation:menuMoonRise .52s cubic-bezier(.2,.84,.2,1) both; }
 .game-menu.is-open .theme-toggle { animation:menuThemeArrival .5s .52s cubic-bezier(.18,.82,.22,1) backwards; }
 .game-menu.is-open>footer { animation:menuFooterArrival .42s .58s ease-out backwards; }
 .game-menu.is-closing .menu-title,
@@ -1525,6 +1554,25 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
 @keyframes menuThemeArrival {
   from { opacity:0; transform:translate(-70px,22px) rotate(-14deg) skewX(-15deg) scale(.55); }
   72% { transform:translate(5px,-2px) rotate(5deg) skewX(-8deg) scale(1.08); }
+}
+@keyframes menuSunRise {
+  0% { opacity:0; transform:translate(-50%,72%) rotate(24deg) scale(.72); }
+  72% { opacity:1; transform:translate(-50%,-57%) rotate(-5deg) scale(1.06); }
+  100% { opacity:1; transform:translate(-50%,-50%) rotate(0) scale(1); }
+}
+@keyframes menuSunDrop {
+  0% { opacity:1; transform:translate(-50%,-50%) rotate(0) scale(1); }
+  100% { opacity:0; transform:translate(-50%,72%) rotate(24deg) scale(.72); }
+}
+@keyframes menuMoonRise {
+  0% { opacity:0; transform:translate(-50%,72%) rotate(-24deg) scale(.72); }
+  72% { opacity:1; transform:translate(-50%,-57%) rotate(5deg) scale(1.06); }
+  100% { opacity:1; transform:translate(-50%,-50%) rotate(0) scale(1); }
+}
+@keyframes menuMoonLift {
+  0% { opacity:1; transform:translate(-50%,-50%) rotate(0) scale(1); }
+  45% { opacity:.82; transform:translate(-50%,-78%) rotate(-8deg) scale(.94); }
+  100% { opacity:0; transform:translate(-50%,-172%) rotate(-24deg) scale(.72); }
 }
 @keyframes menuFooterArrival {
   from { opacity:0; transform:translateX(-35px) rotate(-8deg); }

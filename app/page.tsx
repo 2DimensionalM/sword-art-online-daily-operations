@@ -1941,7 +1941,10 @@ export default function Home() {
         aria-label={theme === 'day' ? '切换到夜间模式' : '切换到白天模式'}
         onClick={() => setTheme((current) => current === 'day' ? 'night' : 'day')}
       >
-        <span className={`menu-theme-icon menu-theme-icon-${theme === 'day' ? 'night' : 'day'}`} aria-hidden="true"><i /><b /></span>
+        <span className="menu-theme-switch" aria-hidden="true">
+          <span className="menu-theme-icon menu-theme-icon-day"><i /><b /></span>
+          <span className="menu-theme-icon menu-theme-icon-night"><i /><b /></span>
+        </span>
       </button>
     </aside>
     {(menuOpen || menuClosing) && <button className={`menu-scrim ${menuClosing ? 'is-closing' : ''}`} aria-label="关闭菜单" onClick={closeMenu} />}
