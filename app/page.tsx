@@ -1839,8 +1839,8 @@ export default function Home() {
       setView(nextView);
       setPageMotion('enter');
       onArrive?.();
-      window.setTimeout(() => setPageMotion('idle'), 620);
-    }, 480);
+      window.setTimeout(() => setPageMotion('idle'), 520);
+    }, 420);
   };
   const openCalendarDay = (dayKey: string) => {
     const [year, month] = dayKey.split('-').map(Number);
