@@ -520,10 +520,10 @@ button { color:inherit; }
 .page-motion-enter.page-direction-forward .life-dashboard,.page-motion-enter.page-direction-forward .board,.page-motion-enter.page-direction-forward .archive-page,.page-motion-enter.page-direction-forward .calendar-page,.page-motion-enter.page-direction-forward .sleep-page,.page-motion-enter.page-direction-forward .settings-page { animation:cameraTrackInForward .5s cubic-bezier(.18,.82,.25,1) both; }
 .page-motion-exit.page-direction-backward .life-dashboard,.page-motion-exit.page-direction-backward .board,.page-motion-exit.page-direction-backward .archive-page,.page-motion-exit.page-direction-backward .calendar-page,.page-motion-exit.page-direction-backward .sleep-page,.page-motion-exit.page-direction-backward .settings-page { animation:cameraTrackOutBackward .42s cubic-bezier(.45,0,.25,1) both; }
 .page-motion-enter.page-direction-backward .life-dashboard,.page-motion-enter.page-direction-backward .board,.page-motion-enter.page-direction-backward .archive-page,.page-motion-enter.page-direction-backward .calendar-page,.page-motion-enter.page-direction-backward .sleep-page,.page-motion-enter.page-direction-backward .settings-page { animation:cameraTrackInBackward .5s cubic-bezier(.18,.82,.25,1) both; }
-@keyframes cameraTrackOutForward { to { opacity:.25; transform:translate3d(-14vw,0,0); } }
-@keyframes cameraTrackInForward { from { opacity:.25; transform:translate3d(14vw,0,0); } to { opacity:1; transform:translate3d(0,0,0); } }
-@keyframes cameraTrackOutBackward { to { opacity:.25; transform:translate3d(14vw,0,0); } }
-@keyframes cameraTrackInBackward { from { opacity:.25; transform:translate3d(-14vw,0,0); } to { opacity:1; transform:translate3d(0,0,0); } }
+@keyframes cameraTrackOutForward { to { opacity:1; transform:translate3d(-14vw,0,0); } }
+@keyframes cameraTrackInForward { from { opacity:1; transform:translate3d(14vw,0,0); } to { opacity:1; transform:translate3d(0,0,0); } }
+@keyframes cameraTrackOutBackward { to { opacity:1; transform:translate3d(14vw,0,0); } }
+@keyframes cameraTrackInBackward { from { opacity:1; transform:translate3d(-14vw,0,0); } to { opacity:1; transform:translate3d(0,0,0); } }
 
 /* Cohesive warm dark palette: charcoal elevation, muted gold, readable ivory */
 .theme-night.app-shell { --night-bg:#151610; --night-surface:#202219; --night-raised:#2a2d22; --night-control:#33372a; --night-line:#565a42; --night-text:#eeeacb; --night-muted:#aaa78e; --night-gold:#e0ca46; color:var(--night-text); background:radial-gradient(circle at 15% 8%,rgba(224,202,70,.09),transparent 28%),linear-gradient(120deg,transparent 0 70%,rgba(224,202,70,.035) 70.1% 71%,transparent 71.1%),repeating-linear-gradient(-9deg,rgba(255,255,255,.018) 0 1px,transparent 1px 8px),var(--night-bg); }
@@ -1253,8 +1253,28 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
 .game-menu.is-open nav button:nth-child(6) { transition-delay:.55s,.55s,0s,0s,0s; }
 .game-menu.is-closing nav button {
   opacity:1;
+  color:var(--paper);
+  background:transparent;
+  border:0;
+  box-shadow:none;
   transform:translateX(var(--menu-x)) rotateY(-14deg) rotateZ(var(--menu-r));
   animation:menuItemExit .36s cubic-bezier(.55,.02,.3,1) both;
+}
+.game-menu.is-closing nav button:hover,
+.game-menu.is-closing nav button:focus-visible {
+  color:var(--paper);
+  background:transparent;
+  border:0;
+  outline:0;
+  box-shadow:none;
+}
+.game-menu.is-closing nav button.active { color:var(--yellow); }
+.game-menu.is-closing nav button::before,
+.game-menu.is-closing nav button::after { opacity:0; transition:none; }
+.game-menu.is-closing nav button>strong {
+  -webkit-text-stroke:1.25px var(--ink);
+  text-shadow:3px 3px 0 var(--ink),5px 5px 0 rgba(247,226,27,.5);
+  animation:none;
 }
 .game-menu.is-closing nav button:nth-child(6) { animation-delay:0s; }
 .game-menu.is-closing nav button:nth-child(5) { animation-delay:.035s; }
