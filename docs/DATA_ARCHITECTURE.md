@@ -19,12 +19,15 @@ The API accepts requests only from HTTP origins on `localhost` or `127.0.0.1`. I
 - `migration_backups`: immutable JSON snapshots captured during an explicit browser-storage import.
 - `deadline_events`: immutable audit events captured when an existing deadline on a Must task is changed or cleared. Initial deadline assignment is not a change.
 - `task_deletion_events`: immutable task snapshots captured when a persisted non-template task disappears from a successful state write. These records power cancellation statistics; deletion history from before this table existed cannot be reconstructed.
+- `task_time_events`: immutable task-time audit events for `started_at`, `due_at`, and `completed_at`. New non-template tasks record non-empty initial values; subsequent assignments, edits, and clears record both the old and new value.
 
 Writes replace the complete planner state inside one `BEGIN IMMEDIATE` transaction. A monotonically increasing revision rejects stale writes from another tab. WAL mode and `synchronous = FULL` are enabled for local durability.
 
 Deadline events are detected inside that same transaction by comparing the previously stored task with the incoming task. Historical changes made before this pipeline existed cannot be reconstructed and are intentionally not backfilled.
 
 Task deletions are detected in the same transaction by comparing persisted task ids with the incoming state. Recurrence templates are excluded because removing a scheduling rule is not the same event as cancelling one generated mission.
+
+Task-time events are captured in the same transaction as the planner state write, so the audit record and task value cannot diverge. They are intentionally not backfilled. Query all events with `GET /v1/task-time-events`, filter one task with `GET /v1/task-time-events?taskId=<id>`, or inspect the `task_time_events` table directly. The web application does not display this audit trail.
 
 ## One-time browser migration
 

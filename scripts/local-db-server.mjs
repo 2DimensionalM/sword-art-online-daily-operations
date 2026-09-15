@@ -85,6 +85,18 @@ db.exec(`
     payload_json TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS task_time_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    field_name TEXT NOT NULL CHECK (field_name IN ('started_at', 'due_at', 'completed_at')),
+    old_value TEXT NOT NULL,
+    new_value TEXT NOT NULL,
+    change_kind TEXT NOT NULL CHECK (change_kind IN ('initial', 'updated')),
+    task_title TEXT NOT NULL,
+    task_status TEXT NOT NULL CHECK (task_status IN ('pending', 'inProgress', 'completed'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_tasks_status_manual_order
   ON tasks(status, manual_order);
 
@@ -100,6 +112,9 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_task_deletion_events_deleted_at
   ON task_deletion_events(deleted_at DESC);
+
+  CREATE INDEX IF NOT EXISTS idx_task_time_events_task_changed_at
+  ON task_time_events(task_id, changed_at DESC, id DESC);
 `);
 db.exec('PRAGMA optimize');
 
@@ -153,6 +168,29 @@ const insertTaskDeletionEvent = db.prepare(`
 `);
 const readTaskDeletionEventByTaskId = db.prepare('SELECT id FROM task_deletion_events WHERE task_id = ? LIMIT 1');
 const deleteTaskDeletionEvent = db.prepare('DELETE FROM task_deletion_events WHERE id = ?');
+const readTaskTimeEvents = db.prepare(`
+  SELECT id, task_id, changed_at, field_name, old_value, new_value, change_kind, task_title, task_status
+  FROM task_time_events
+  ORDER BY changed_at DESC, id DESC
+`);
+const readTaskTimeEventsByTaskId = db.prepare(`
+  SELECT id, task_id, changed_at, field_name, old_value, new_value, change_kind, task_title, task_status
+  FROM task_time_events
+  WHERE task_id = ?
+  ORDER BY changed_at DESC, id DESC
+`);
+const insertTaskTimeEvent = db.prepare(`
+  INSERT INTO task_time_events (
+    task_id, changed_at, field_name, old_value, new_value,
+    change_kind, task_title, task_status
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+const TASK_TIME_FIELDS = [
+  ['started_at', 'startedAt'],
+  ['due_at', 'dueAt'],
+  ['completed_at', 'completedAt'],
+];
 
 function recordTaskDeletionEvent(task, deletedAt = new Date().toISOString()) {
   if (!task || typeof task !== 'object') throw new Error('Task deletion payload must be an object');
@@ -247,6 +285,24 @@ function saveState(payload) {
         if (previous && !task.isRecurrenceTemplate && (previous.priority === 'must' || task.priority === 'must') && oldDueAt && oldDueAt !== newDueAt) {
           insertDeadlineEvent.run(task.id, now, oldDueAt, newDueAt, task.priority);
         }
+        if (!task.isRecurrenceTemplate) {
+          for (const [fieldName, propertyName] of TASK_TIME_FIELDS) {
+            const oldValue = String(previous?.[propertyName] ?? '');
+            const newValue = String(task[propertyName] ?? '');
+            if ((previous && oldValue !== newValue) || (!previous && newValue)) {
+              insertTaskTimeEvent.run(
+                task.id,
+                now,
+                fieldName,
+                oldValue,
+                newValue,
+                previous ? 'updated' : 'initial',
+                String(task.title ?? ''),
+                task.status,
+              );
+            }
+          }
+        }
       }
     }
 
@@ -322,6 +378,21 @@ function getTaskDeletionEvents() {
   }));
 }
 
+function getTaskTimeEvents(taskId = '') {
+  const events = taskId ? readTaskTimeEventsByTaskId.all(taskId) : readTaskTimeEvents.all();
+  return events.map((event) => ({
+    id: Number(event.id),
+    taskId: event.task_id,
+    changedAt: event.changed_at,
+    fieldName: event.field_name,
+    oldValue: event.old_value,
+    newValue: event.new_value,
+    changeKind: event.change_kind,
+    taskTitle: event.task_title,
+    taskStatus: event.task_status,
+  }));
+}
+
 function createSleepRecord(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('Sleep record payload must be an object');
   const id = typeof payload.id === 'string' && payload.id ? payload.id : crypto.randomUUID();
@@ -387,6 +458,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/v1/task-deletions') {
       return sendJson(response, 200, getTaskDeletionEvents(), origin);
+    }
+    if (request.method === 'GET' && request.url?.startsWith('/v1/task-time-events')) {
+      const requestUrl = new URL(request.url, `http://${host}:${port}`);
+      if (requestUrl.pathname === '/v1/task-time-events') {
+        return sendJson(response, 200, getTaskTimeEvents(requestUrl.searchParams.get('taskId') || ''), origin);
+      }
     }
     if (request.method === 'POST' && request.url === '/v1/task-deletions') {
       recordTaskDeletionEvent(await readJson(request));

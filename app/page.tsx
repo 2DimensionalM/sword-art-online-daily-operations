@@ -1630,7 +1630,11 @@ export default function Home() {
     setTasks((current) => {
       const existing = current.find((task) => task.id === draft.id);
       const titleOverride = Boolean(existing && !draft.isRecurrenceTemplate && existing.recurrence !== 'none' && draft.title.trim() !== existing.title.trim());
-      let saved = existing && existing.status !== draft.status ? transitionTask({ ...draft, status: existing.status }, draft.status) : draft;
+      let saved = existing && existing.status !== draft.status
+        ? transitionTask({ ...draft, status: existing.status }, draft.status)
+        : !existing && draft.status === 'inProgress' && !draft.startedAt
+          ? transitionTask({ ...draft, status: 'pending' }, 'inProgress')
+          : draft;
       const savedRecurrence = titleOverride ? 'none' : saved.recurrence;
       const recurrenceStartTime = savedRecurrence === 'none'
         ? ''
