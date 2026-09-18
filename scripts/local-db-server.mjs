@@ -85,6 +85,18 @@ db.exec(`
     payload_json TEXT NOT NULL
   );
 
+  CREATE TABLE IF NOT EXISTS task_time_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    task_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    field_name TEXT NOT NULL CHECK (field_name IN ('started_at', 'due_at', 'completed_at')),
+    old_value TEXT NOT NULL,
+    new_value TEXT NOT NULL,
+    change_kind TEXT NOT NULL CHECK (change_kind IN ('initial', 'updated')),
+    task_title TEXT NOT NULL,
+    task_status TEXT NOT NULL CHECK (task_status IN ('pending', 'inProgress', 'completed'))
+  );
+
   CREATE INDEX IF NOT EXISTS idx_tasks_status_manual_order
   ON tasks(status, manual_order);
 
@@ -100,6 +112,20 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_task_deletion_events_deleted_at
   ON task_deletion_events(deleted_at DESC);
+
+  CREATE INDEX IF NOT EXISTS idx_task_time_events_task_changed_at
+  ON task_time_events(task_id, changed_at DESC, id DESC);
+`);
+// Additive signal-room migration; planner state and its revision remain independent.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS goals (
+    id TEXT PRIMARY KEY, task_type TEXT NOT NULL, title TEXT NOT NULL,
+    description TEXT NOT NULL, due_date TEXT NOT NULL
+  );
+  CREATE TABLE IF NOT EXISTS personal_messages (
+    id TEXT PRIMARY KEY, mood TEXT NOT NULL, title TEXT NOT NULL,
+    description TEXT NOT NULL, message_date TEXT NOT NULL
+  );
 `);
 db.exec('PRAGMA optimize');
 
@@ -153,6 +179,29 @@ const insertTaskDeletionEvent = db.prepare(`
 `);
 const readTaskDeletionEventByTaskId = db.prepare('SELECT id FROM task_deletion_events WHERE task_id = ? LIMIT 1');
 const deleteTaskDeletionEvent = db.prepare('DELETE FROM task_deletion_events WHERE id = ?');
+const readTaskTimeEvents = db.prepare(`
+  SELECT id, task_id, changed_at, field_name, old_value, new_value, change_kind, task_title, task_status
+  FROM task_time_events
+  ORDER BY changed_at DESC, id DESC
+`);
+const readTaskTimeEventsByTaskId = db.prepare(`
+  SELECT id, task_id, changed_at, field_name, old_value, new_value, change_kind, task_title, task_status
+  FROM task_time_events
+  WHERE task_id = ?
+  ORDER BY changed_at DESC, id DESC
+`);
+const insertTaskTimeEvent = db.prepare(`
+  INSERT INTO task_time_events (
+    task_id, changed_at, field_name, old_value, new_value,
+    change_kind, task_title, task_status
+  ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+`);
+
+const TASK_TIME_FIELDS = [
+  ['started_at', 'startedAt'],
+  ['due_at', 'dueAt'],
+  ['completed_at', 'completedAt'],
+];
 
 function recordTaskDeletionEvent(task, deletedAt = new Date().toISOString()) {
   if (!task || typeof task !== 'object') throw new Error('Task deletion payload must be an object');
@@ -247,6 +296,24 @@ function saveState(payload) {
         if (previous && !task.isRecurrenceTemplate && (previous.priority === 'must' || task.priority === 'must') && oldDueAt && oldDueAt !== newDueAt) {
           insertDeadlineEvent.run(task.id, now, oldDueAt, newDueAt, task.priority);
         }
+        if (!task.isRecurrenceTemplate) {
+          for (const [fieldName, propertyName] of TASK_TIME_FIELDS) {
+            const oldValue = String(previous?.[propertyName] ?? '');
+            const newValue = String(task[propertyName] ?? '');
+            if ((previous && oldValue !== newValue) || (!previous && newValue)) {
+              insertTaskTimeEvent.run(
+                task.id,
+                now,
+                fieldName,
+                oldValue,
+                newValue,
+                previous ? 'updated' : 'initial',
+                String(task.title ?? ''),
+                task.status,
+              );
+            }
+          }
+        }
       }
     }
 
@@ -322,6 +389,21 @@ function getTaskDeletionEvents() {
   }));
 }
 
+function getTaskTimeEvents(taskId = '') {
+  const events = taskId ? readTaskTimeEventsByTaskId.all(taskId) : readTaskTimeEvents.all();
+  return events.map((event) => ({
+    id: Number(event.id),
+    taskId: event.task_id,
+    changedAt: event.changed_at,
+    fieldName: event.field_name,
+    oldValue: event.old_value,
+    newValue: event.new_value,
+    changeKind: event.change_kind,
+    taskTitle: event.task_title,
+    taskStatus: event.task_status,
+  }));
+}
+
 function createSleepRecord(payload) {
   if (!payload || typeof payload !== 'object') throw new Error('Sleep record payload must be an object');
   const id = typeof payload.id === 'string' && payload.id ? payload.id : crypto.randomUUID();
@@ -335,6 +417,53 @@ function createSleepRecord(payload) {
   const now = new Date().toISOString();
   insertSleepRecord.run(id, start.toISOString(), wake.toISOString(), now, now);
   return getSleepRecords();
+}
+
+function getSignals() {
+  return {
+    revision: Number(getMeta('signals_revision', '0')),
+    goals: db.prepare('SELECT id, task_type AS taskType, title, description, due_date AS date FROM goals ORDER BY due_date, rowid').all(),
+    messages: db.prepare('SELECT id, mood, title, description, message_date AS date FROM personal_messages ORDER BY message_date DESC, rowid DESC').all(),
+  };
+}
+
+function assertSignals(payload) {
+  if (!payload || !Array.isArray(payload.goals) || !Array.isArray(payload.messages)) throw new Error('目标与寄语格式无效');
+  for (const [records, field] of [[payload.goals, 'taskType'], [payload.messages, 'mood']]) {
+    if (records.length > 5000) throw new Error('条目数量过多');
+    const ids = new Set();
+    for (const record of records) {
+      if (!record || typeof record.id !== 'string' || !record.id || record.id.length > 100 || ids.has(record.id)) throw new Error('条目 ID 无效或重复');
+      ids.add(record.id);
+      for (const [key, max] of [['title', 200], ['description', 10000], [field, 100]]) {
+        if (typeof record[key] !== 'string' || record[key].length > max || (key !== 'description' && !record[key].trim())) throw new Error('标题、类型或心情不能为空，且不能超出长度限制');
+      }
+      if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || !Number.isFinite(Date.parse(record.date)) || new Date(record.date).toISOString().slice(0, 10) !== record.date) throw new Error('请选择有效日期');
+    }
+  }
+}
+
+function saveSignals(payload) {
+  assertSignals(payload);
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const current = getSignals();
+    if (payload.expectedRevision !== current.revision) {
+      db.exec('ROLLBACK');
+      return { conflict: true, state: current };
+    }
+    db.exec('DELETE FROM goals; DELETE FROM personal_messages;');
+    const goal = db.prepare('INSERT INTO goals VALUES (?, ?, ?, ?, ?)');
+    const message = db.prepare('INSERT INTO personal_messages VALUES (?, ?, ?, ?, ?)');
+    for (const item of payload.goals) goal.run(item.id, item.taskType.trim(), item.title.trim(), item.description, item.date);
+    for (const item of payload.messages) message.run(item.id, item.mood.trim(), item.title.trim(), item.description, item.date);
+    writeMeta.run('signals_revision', String(current.revision + 1));
+    db.exec('COMMIT');
+    return { conflict: false, state: getSignals() };
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
 }
 
 function isAllowedOrigin(origin) {
@@ -376,6 +505,13 @@ const server = createServer(async (request, response) => {
     if (request.method === 'GET' && request.url === '/health') {
       return sendJson(response, 200, { ok: true }, origin);
     }
+    if (request.method === 'GET' && request.url === '/v1/signals') {
+      return sendJson(response, 200, getSignals(), origin);
+    }
+    if (request.method === 'PUT' && request.url === '/v1/signals') {
+      const result = saveSignals(await readJson(request));
+      return sendJson(response, result.conflict ? 409 : 200, result.state, origin);
+    }
     if (request.method === 'GET' && request.url === '/v1/state') {
       return sendJson(response, 200, getState(), origin);
     }
@@ -387,6 +523,12 @@ const server = createServer(async (request, response) => {
     }
     if (request.method === 'GET' && request.url === '/v1/task-deletions') {
       return sendJson(response, 200, getTaskDeletionEvents(), origin);
+    }
+    if (request.method === 'GET' && request.url?.startsWith('/v1/task-time-events')) {
+      const requestUrl = new URL(request.url, `http://${host}:${port}`);
+      if (requestUrl.pathname === '/v1/task-time-events') {
+        return sendJson(response, 200, getTaskTimeEvents(requestUrl.searchParams.get('taskId') || ''), origin);
+      }
     }
     if (request.method === 'POST' && request.url === '/v1/task-deletions') {
       recordTaskDeletionEvent(await readJson(request));
@@ -419,7 +561,7 @@ const server = createServer(async (request, response) => {
 });
 
 server.listen(port, host, () => {
-  console.log(`SQLite API: http://${host}:${port}`);
+  console.log(`SQLite API: http://${host}:${server.address().port}`);
   console.log(`SQLite file: ${databasePath}`);
 });
 

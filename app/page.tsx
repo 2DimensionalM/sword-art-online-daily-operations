@@ -1,6 +1,8 @@
 'use client';
 
 import { FormEvent, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { DiscardSignalDialog } from './components/DiscardSignalDialog';
+import { GoalRadar, SignalRoom, SignalTicker, useSignals } from './components/SignalRoom';
 import { BrandLockup } from './components/BrandLockup';
 import { LifeDashboard, type DashboardCampaignScale, type DashboardTask } from './components/LifeDashboard';
 import { loadDeadlineEvents, type DeadlineEvent } from './lib/deadline-store';
@@ -11,7 +13,7 @@ import { loadTaskDeletionEvents, recordTaskDeletionEvent, removeTaskDeletionEven
 type Status = 'pending' | 'inProgress' | 'completed';
 type Priority = 'must' | 'high' | 'medium' | 'low';
 type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly';
-type View = 'dashboard' | 'board' | 'table' | 'calendar' | 'sleep' | 'settings';
+type View = 'dashboard' | 'board' | 'table' | 'calendar' | 'sleep' | 'signals' | 'settings';
 type ChoiceFieldName = 'status' | 'priority' | 'taskType' | 'location' | 'recurrence';
 type DateFieldName = 'startedAt' | 'completedAt' | 'dueAt';
 type TypeColor = 'purple' | 'blue' | 'green' | 'yellow';
@@ -135,7 +137,8 @@ const navItems: { id: View; no: string; title: string; subtitle: string; mark: s
   { id: 'table', no: '02', title: 'MISSION ARCHIVE', subtitle: '任务档案表', mark: '▦' },
   { id: 'sleep', no: '03', title: 'NIGHT LOG', subtitle: '夜间状态档案', mark: '☾' },
   { id: 'calendar', no: '04', title: 'CALENDAR', subtitle: '月度行动日历', mark: '◆' },
-  { id: 'settings', no: '05', title: 'DESIGN', subtitle: '默认设置', mark: '✦' },
+  { id: 'signals', no: '05', title: 'SIGNAL ROOM', subtitle: '心愿放送室', mark: '◈' },
+  { id: 'settings', no: '06', title: 'DESIGN', subtitle: '默认设置', mark: '✦' },
 ];
 
 function localDateKey(date: Date) {
@@ -1157,6 +1160,9 @@ export default function Home() {
   const remindersReady = useRef(false);
   const pendingSortRef = useRef<HTMLDivElement>(null);
   const scheduleTimelineRef = useRef<HTMLDivElement>(null);
+  const signals = useSignals();
+  const [signalDirty, setSignalDirty] = useState(false);
+  const [pendingSignalView, setPendingSignalView] = useState<View | null>(null);
   const [view, setView] = useState<View>('dashboard');
   const [viewRestored, setViewRestored] = useState(false);
   const [dashboardScale, setDashboardScale] = useState<DashboardCampaignScale>('week');
@@ -1630,7 +1636,11 @@ export default function Home() {
     setTasks((current) => {
       const existing = current.find((task) => task.id === draft.id);
       const titleOverride = Boolean(existing && !draft.isRecurrenceTemplate && existing.recurrence !== 'none' && draft.title.trim() !== existing.title.trim());
-      let saved = existing && existing.status !== draft.status ? transitionTask({ ...draft, status: existing.status }, draft.status) : draft;
+      let saved = existing && existing.status !== draft.status
+        ? transitionTask({ ...draft, status: existing.status }, draft.status)
+        : !existing && draft.status === 'inProgress' && !draft.startedAt
+          ? transitionTask({ ...draft, status: 'pending' }, 'inProgress')
+          : draft;
       const savedRecurrence = titleOverride ? 'none' : saved.recurrence;
       const recurrenceStartTime = savedRecurrence === 'none'
         ? ''
@@ -1824,7 +1834,8 @@ export default function Home() {
     setSelectedWorkshopLocation('');
     setToast('地点已添加');
   };
-  const navigateTo = (nextView: View, onArrive?: () => void) => {
+  const navigateTo = (nextView: View, onArrive?: () => void, discardApproved = false) => {
+    if (nextView !== view && signalDirty && !discardApproved) { setPendingSignalView(nextView); return; }
     setDayAgendaOpen(false);
     setDraft(null);
     setChoiceField(null);
@@ -1954,8 +1965,11 @@ export default function Home() {
       <BrandLockup sectionTitle={activeNav.title} sectionSubtitle={activeNav.subtitle} username={settings.username} />
       <div className="day-card" aria-label="今日日期"><span>{new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(now).toUpperCase()}</span><strong>{String(now.getDate()).padStart(2, '0')}</strong><em>{new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(now).toUpperCase()}</em></div>
       <div className="mission-summary"><span>TODAY&apos;S CLEAR</span><strong>{completedToday}<small> / {todayActionTasks.length}</small></strong><div className="summary-track"><i style={{ width: `${todayActionTasks.length ? Math.min(100, completedToday / todayActionTasks.length * 100) : 0}%` }} /></div></div>
-      {view !== 'settings' && view !== 'sleep' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
+      {view !== 'settings' && view !== 'sleep' && view !== 'signals' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
     </header>
+
+    {view === 'signals' && <SignalRoom signals={signals} taskTypes={settings.taskTypes.map((item) => item.value)} onDirtyChange={setSignalDirty} />}
+    {view === 'dashboard' && <GoalRadar signals={signals} today={localDateKey(now)} onOpen={() => navigateTo('signals')} />}
 
     {view === 'dashboard' && <LifeDashboard
       username={settings.username}
@@ -2070,7 +2084,7 @@ export default function Home() {
     </section>}
 
     {view === 'settings' && <section className="settings-page">
-      <header className="page-banner"><span>05</span><div><p>PERSONAL OPERATION RULES</p><h2>DESIGN</h2></div><strong>AUTO-SAVED</strong></header>
+      <header className="page-banner"><span>06</span><div><p>PERSONAL OPERATION RULES</p><h2>DESIGN</h2></div><strong>AUTO-SAVED</strong></header>
       <div className="settings-grid"><section className="settings-panel profile-panel"><header><span>00</span><div><h3>PLAYER IDENTITY</h3><p>同步更新标题上方与主菜单中的用户名</p></div></header><div className="profile-console"><div className="profile-badge"><span>ACTIVE PLAYER</span><strong>{settings.username}</strong><small>SWORD ART ONLINE · LOCAL PROFILE</small></div><label><span>USERNAME / 用户名</span><input maxLength={32} value={settings.username} onChange={(event) => setSettings({ ...settings, username: event.target.value })} onBlur={() => setSettings((current) => ({ ...current, username: current.username.trim() || DEFAULT_SETTINGS.username }))} placeholder="输入用户名" /><small>最多 32 个字符，修改后自动保存到本地 SQLite。</small></label></div></section><section className="settings-panel loadout-studio"><header><span>01</span><div><h3>NEW MISSION DEFAULTS</h3><p>只决定新建任务时自动填入的内容</p></div></header><div className="loadout-console"><div className={`loadout-preview type-${typeColor(settings.defaultTaskType, settings)}`}><span>PREVIEW</span><strong>下一项新任务</strong><p>{settings.defaultTaskType}</p><small>{settings.defaultLocation} · 中优先级</small></div><div className="loadout-controls"><label><span>TASK TYPE / 默认类型</span><SignalSelect value={settings.defaultTaskType} label="TASK TYPE / 默认类型" mark="◈" options={sortedTaskTypes(settings.taskTypes).map((type) => ({ value: type.value, label: type.value, tone: type.color }))} onChange={(defaultTaskType) => setSettings((current) => ({ ...current, defaultTaskType }))} /></label><label><span>LOCATION / 默认地点</span><SignalSelect value={settings.defaultLocation} label="LOCATION / 默认地点" mark="⌖" options={settings.locations.map((location) => ({ value: location.value, label: location.value }))} onChange={(defaultLocation) => setSettings((current) => ({ ...current, defaultLocation }))} /></label><p>优先级不设默认偏好，新任务统一从“中”开始，随后可在任务详情里调整。</p></div></div></section>
         <section className="settings-panel custom-panel">
           <header><span>02</span><div><h3>OPTION WORKSHOP</h3><p>输入新项目，或从候选项调整任务类型和地点</p></div></header>
@@ -2122,6 +2136,9 @@ export default function Home() {
 
     <footer className="app-footer"><span>{activeNav.title}</span><i /><span>自动时间戳已开启</span><i /><span>本机自动保存</span></footer>
     </div>
+
+    <SignalTicker signals={signals} />
+    {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
 
     {impact && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
 
