@@ -301,3 +301,9 @@ Before merging a visual change, confirm:
 - Does the logo read as one three-dimensional silhouette rather than several decorated rectangles?
 
 Then run `npm run design:check`, `npm run lint`, `npm run build`, and browser-check the affected desktop and mobile layouts.
+
+## 12. Personal signal channel
+
+`SIGNAL ROOM / 心愿放送室` extends the local broadcast identity with an ink masthead, a single yellow ON AIR station card, and level paper reading/editing surfaces. Goals and messages share the visual system but use separate editorial channels. Goal cards retain the configured task-type text; mood remains user-authored. The homepage `目标雷达` is a read-only reminder, with deadline proximity expressed as text rather than a fabricated progress percentage.
+
+The all-page news ticker uses an ink/yellow warning stripe, a constant right-to-left crawl, quiet hide/restore controls, explicit pause, and pause on hover/focus. It stays outside page transitions and below menus/dialogs. A bottom content inset prevents controls from disappearing behind it. Reduced motion removes automatic scrolling; the full feed remains manually scrollable. New channel transitions follow existing navigation direction. Narrow screens stack the editor above its library, and night mode uses charcoal reading surfaces with warm paper text.

@@ -65,3 +65,15 @@ The recovery command temporarily serves a page on the requested historical port.
 ## Future Dashboard integration
 
 Dashboard code should consume the local API or a future repository/service layer, never reach into browser storage. If remote or multi-device access becomes necessary, preserve this state contract and migrate the storage adapter to D1 or another hosted SQL database. Authentication is required before exposing any state API beyond localhost.
+
+## Signal Room / 心愿放送室
+
+`goals` stores `id`, `task_type`, `title`, `description`, and `due_date` (a local calendar date, `YYYY-MM-DD`). `personal_messages` stores `id`, `mood`, `title`, `description`, and `message_date` in the same date format. These additive tables are independent of tasks and do not generate missions or alter recurrence.
+
+`GET /v1/signals` returns `{ revision, goals, messages }`. `PUT /v1/signals` takes `{ expectedRevision, goals, messages }` and commits both collections atomically. `app_meta.signals_revision` guards concurrent edits separately from the planner revision. Invalid input returns 400 without mutation; stale writes return 409 with the current state. The editor keeps the draft and requires the user to review the latest list before retrying. The client refreshes on window focus / visibility return. Network failures leave drafts intact.
+
+The Signal Room is the only editor. The homepage goal radar and fixed broadcast ticker derive read-only content from the same loaded state. Ticker visibility is a session-only UI preference in `sessionStorage`; neither goals nor messages use browser storage. Hover/focus and an explicit pause control stop the ticker, and reduced-motion users get a manually scrollable static feed.
+
+The initial 22 messages were transcribed from the user-provided Notion screenshot, imported explicitly into this local database, and recorded under `notion-personal-messages-screenshot-2026-09-18` in `migration_backups`. Personal content and the import source remain in ignored `recovery/`; application startup never seeds them. No screenshot goals were imported. A consistent backup was taken before the migration. Code checkout alone does not ship personal messages to other installations.
+
+Run `node --test scripts/test-signals.mjs` to validate against an isolated temporary database and OS-assigned loopback port, including restart persistence, validation, conflict rejection, deleted-entry persistence and planner/migration-audit preservation.
