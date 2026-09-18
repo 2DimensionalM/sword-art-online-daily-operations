@@ -89,7 +89,16 @@
 .signal-editor>small { display:block; margin-top:18px; font-size:11px; color:var(--signal-muted); }
 .signal-error { padding:14px; background:var(--color-paper); color:var(--color-ink); border-left:5px solid var(--color-red); font-size:13px; line-height:1.8; margin-bottom:16px; }
 .signal-error button { background:var(--color-signal); color:var(--color-ink); }
-.signal-notice { font-size:13px; font-weight:700; padding:10px; background:var(--signal-surface); }
+.signal-notice { display:grid; grid-template-columns:38px auto minmax(62px,1fr); align-items:center; width:min(100%,420px); min-height:48px; margin:-8px 4px 20px auto; color:var(--color-paper); background:var(--color-ink); border:3px solid var(--color-ink); box-shadow:4px 4px 0 var(--color-signal); animation:signalNoticeIn .28s cubic-bezier(.2,.9,.3,1) both; }
+.signal-notice-mark { display:grid; align-self:stretch; place-items:center; color:var(--color-ink); background:var(--color-signal); font:1000 21px var(--font-ui); }
+.signal-notice-copy { display:grid; gap:1px; padding:6px 12px; }
+.signal-notice-copy b { font-size:13px; font-weight:900; }
+.signal-notice-copy small { color:#d8d5c5; font:700 10px var(--font-ui); letter-spacing:.02em; }
+.signal-notice em { justify-self:end; margin-right:12px; color:var(--color-signal); font:900 9px var(--font-ui); letter-spacing:.14em; }
+.signal-notice.is-deleted { box-shadow:4px 4px 0 var(--color-red); }
+.signal-notice.is-deleted .signal-notice-mark { color:var(--color-paper); background:var(--color-red); }
+.signal-notice.is-deleted em { color:#ff8f87; }
+@keyframes signalNoticeIn { from { opacity:0; transform:translateX(18px) skewX(-2deg); } to { opacity:1; transform:none; } }
 .goal-radar { margin:16px 6px 28px 0; background:var(--signal-surface); border:4px solid var(--color-ink); box-shadow:6px 6px 0 var(--color-ink); }
 .goal-radar>header { background:var(--color-ink); color:var(--color-paper); padding:16px 20px; flex-wrap:wrap; }
 .goal-radar header small { font:800 9px var(--font-ui); letter-spacing:.13em; color:var(--color-signal); }
@@ -142,6 +151,8 @@
   .signal-switch { flex:1; }
   .signal-switch button { flex:1; gap:10px; padding:8px 12px; }
   .signal-toolbar>.signal-primary { width:100%; }
+  .signal-notice { grid-template-columns:38px 1fr; width:100%; margin-top:-4px; }
+  .signal-notice em { display:none; }
   .signal-ticker-label { padding:0 10px; font-size:12px; }
   .signal-ticker-group>span { font-size:12px; }
   .game-menu nav button:nth-child(7) { --menu-x:24px; }
@@ -151,6 +162,7 @@
   .signal-ticker-window { overflow-x:auto; }
   .signal-ticker-group[aria-hidden=true] { display:none; }
   .app-shell :is(.signal-room,.goal-radar) { animation:none; }
+  .signal-notice { animation:none; }
 }
 .signal-discard-dialog { margin:auto; width:min(460px,calc(100vw - 32px)); padding:26px; color:var(--color-ink); background:var(--color-paper); border:5px solid var(--color-ink); box-shadow:8px 8px 0 var(--color-signal); }
 .signal-discard-dialog::backdrop { background:rgba(17,18,15,.78); }

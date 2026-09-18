@@ -63,7 +63,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [deleteId, setDeleteId] = useState('');
-  const [notice, setNotice] = useState('');
+  const [notice, setNotice] = useState<'saved' | 'deleted' | ''>('');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const editor = useRef<HTMLFormElement>(null);
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
@@ -73,6 +73,11 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
   }, [dirty]);
+  useEffect(() => {
+    if (!notice) return;
+    const timer = window.setTimeout(() => setNotice(''), 5000);
+    return () => window.clearTimeout(timer);
+  }, [notice]);
   const records = kind === 'goal' ? state.goals : state.messages;
   const filtered = records.filter((item) => `${item.title} ${item.description} ${'taskType' in item ? item.taskType : item.mood}`.toLowerCase().includes(query.toLowerCase()));
   const maxPage = Math.max(0, Math.ceil(filtered.length / 6) - 1);
@@ -91,12 +96,12 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     const next = { ...state, revision: draft.revision };
     if (draft.kind === 'goal') next.goals = [...state.goals.filter((item) => item.id !== draft.id), { ...base, taskType: draft.tag }];
     else next.messages = [...state.messages.filter((item) => item.id !== draft.id), { ...base, mood: draft.tag }];
-    if (await commit(next)) { setDraft(null); setDirty(false); setNotice('已保存 · 首页与公告同步更新'); setQuery(''); setPage(0); }
+    if (await commit(next)) { setDraft(null); setDirty(false); setNotice('saved'); setQuery(''); setPage(0); }
     else setDraft((current) => current && { ...current, revision: -1 });
   };
   const remove = async (id: string) => {
     if (await commit({ ...state, goals: state.goals.filter((item) => item.id !== id), messages: state.messages.filter((item) => item.id !== id) })) {
-      setDeleteId(''); setNotice('条目已删除 · 公告同步更新');
+      setDeleteId(''); setNotice('deleted');
       if (draft?.id === id) { setDraft(null); setDirty(false); }
     }
   };
@@ -104,7 +109,11 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     <header className="signal-masthead"><div><span>CH.05 / YOUR PERSONAL FREQUENCY</span><h2>给未来的自己<br /><em>留一个信号。</em></h2><p>把想抵达的远方、想记住的话，调到同一个频道。</p></div><div className="signal-station" aria-hidden="true"><b>ON<br />AIR</b><span>GOALS × WORDS</span><i>● ━━━ ●</i></div></header>
     <div className="signal-toolbar"><div className="signal-switch" aria-label="内容分类">{(['goal', 'message'] as const).map((value) => <button key={value} aria-pressed={kind === value} onClick={() => { if (value !== kind) askLeave(() => { setKind(value); setPage(0); setQuery(''); setDraft(null); setDirty(false); setDeleteId(''); }); }}><b>{value === 'goal' ? '01 / 目标' : '02 / 寄语'}</b><span>{value === 'goal' ? state.goals.length : state.messages.length}</span></button>)}</div><button className="signal-primary" disabled={!ready || busy} onClick={() => open()}>＋ 新增{kind === 'goal' ? '目标' : '寄语'}</button></div>
     {error && <div className="signal-error" role="alert">{error} <button disabled={busy} onClick={() => void refresh()}>重新读取</button></div>}
-    {notice && <p className="signal-notice" role="status">✓ {notice}</p>}
+    {notice && <div className={`signal-notice is-${notice}`} role="status">
+      <span className="signal-notice-mark" aria-hidden="true">{notice === 'saved' ? '✓' : '×'}</span>
+      <span className="signal-notice-copy"><b>{notice === 'saved' ? '放送完成' : '信号已撤回'}</b><small>{notice === 'saved' ? '首页 / 底部公告已同步' : '首页 / 底部公告已更新'}</small></span>
+      <em>{notice === 'saved' ? 'SYNCED' : 'REMOVED'}</em>
+    </div>}
     <div className={`signal-workspace ${draft ? 'has-editor' : ''}`}><div className="signal-library">
       <div className="signal-library-header"><div><h3>{kind === 'goal' ? '远方坐标' : '给自己的话'}</h3><small>{kind === 'goal' ? 'LONG-RANGE OBJECTIVES' : 'LETTERS TO MYSELF'}</small></div><input aria-label="搜索目标与寄语" placeholder="搜索这个频道…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} /></div>
       {!ready ? <p className="signal-empty">正在接收信号…</p> : !filtered.length ? <div className="signal-empty"><b>{query ? '没有匹配的信号' : kind === 'goal' ? '下一站，想去哪里？' : '有些话，值得反复听见。'}</b><p>{query ? '试试其他关键词。' : '新增第一条内容，让它陪你出现在每一天。'}</p></div> : <div className="signal-cards">{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((item, index) => <article key={item.id} className="signal-card"><header><span>{'taskType' in item ? item.taskType : item.mood}</span><small>NO.{String(currentPage * 6 + index + 1).padStart(2, '0')}</small></header><h4>{item.title}</h4><p>{item.description || '还没有补充描述。'}</p><footer><time dateTime={item.date}>{item.date.replaceAll('-', '.')}</time>{'taskType' in item && <span>{deadline(item.date, todayKey())}</span>}</footer><div className="signal-card-actions"><button disabled={busy} onClick={() => open(item)}>编辑 ↗</button><button disabled={busy} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); setDeleteId(item.id); }); }}>删除</button></div>{deleteId === item.id && <div className="signal-delete" role="group" aria-label="确认删除"><p>删除「{item.title}」？首页和公告也会移除。</p><button disabled={busy} onClick={() => void remove(item.id)}>确认删除</button><button disabled={busy} onClick={() => setDeleteId('')}>保留</button></div>}</article>)}</div>}
