@@ -14,6 +14,7 @@ export type DashboardCampaignScale = 'week' | 'month' | 'quarter';
 type TypeRankMode = 'total' | 'average';
 type LoadMode = 'factions' | 'priority';
 type FactionTimeMode = 'merged' | 'stacked';
+type AllocationDimension = 'tone' | 'type';
 type GraceMinutes = 0 | 30 | 60;
 type OverviewMetricId = 'total' | 'busy' | 'tracked' | 'active' | 'learning' | 'fitness' | 'meditation' | 'cancelled';
 
@@ -188,9 +189,9 @@ function intervalMinutes(task: DashboardTask, period: CampaignPeriod, now: Date)
   return interval ? (interval.end - interval.start) / MINUTE_MS : 0;
 }
 
-function mergedToneMinutes(tasks: DashboardTask[], tone: DashboardTone, period: CampaignPeriod, now: Date) {
+function mergedGroupMinutes(tasks: DashboardTask[], matches: (task: DashboardTask) => boolean, period: CampaignPeriod, now: Date) {
   const intervals = tasks
-    .filter((task) => task.tone === tone)
+    .filter(matches)
     .map((task) => trackedInterval(task, period, now))
     .filter((interval): interval is { start: number; end: number } => Boolean(interval))
     .sort((a, b) => a.start - b.start);
@@ -208,6 +209,14 @@ function mergedToneMinutes(tasks: DashboardTask[], tone: DashboardTone, period: 
     mergedEnd = interval.end;
   });
   return (total + mergedEnd - mergedStart) / MINUTE_MS;
+}
+
+function mergedToneMinutes(tasks: DashboardTask[], tone: DashboardTone, period: CampaignPeriod, now: Date) {
+  return mergedGroupMinutes(tasks, (task) => task.tone === tone, period, now);
+}
+
+function mergedTypeMinutes(tasks: DashboardTask[], taskType: string, period: CampaignPeriod, now: Date) {
+  return mergedGroupMinutes(tasks, (task) => task.taskType === taskType, period, now);
 }
 
 function mergeIntervals(intervals: { start: number; end: number }[]) {
@@ -407,11 +416,9 @@ function buildLoadBuckets(period: CampaignPeriod, scale: DashboardCampaignScale,
   return buckets;
 }
 
-function PieChart({ title, subtitle, segments, headingControl, autoScrollLegend = false, onSegmentSelect }: {
+function PieChart({ title, segments, autoScrollLegend = false, onSegmentSelect }: {
   title: string;
-  subtitle: string;
   segments: { id: string; label: string; value: number; color: string }[];
-  headingControl?: ReactNode;
   autoScrollLegend?: boolean;
   onSegmentSelect: (segment: { id: string; label: string; value: number; color: string }) => void;
 }) {
@@ -434,7 +441,6 @@ function PieChart({ title, subtitle, segments, headingControl, autoScrollLegend 
   };
   let cursor = 0;
   return <figure className="p4-pie-figure">
-    <div className="p4-pie-heading"><div className="allocation-chart-title"><strong>{title}</strong><span>{subtitle}</span></div>{headingControl}</div>
     <div className="p4-pie-stage">
       <div className="p4-pie-disc">
         <svg viewBox="0 0 240 240" role="img" aria-label={title}>
@@ -486,6 +492,7 @@ function MetricTrend({ title, values, tone, onPointSelect }: { title: string; va
 export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, deadlineEvents, taskDeletionEvents, campaignScale: scale, selectedPeriodId, onCampaignWindowChange, onNavigate, onOpenCalendarDay, onOpenCancellationLog }: LifeDashboardProps) {
   const [typeRankMode, setTypeRankMode] = useState<TypeRankMode>('total');
   const [loadMode, setLoadMode] = useState<LoadMode>('factions');
+  const [allocationDimension, setAllocationDimension] = useState<AllocationDimension>('tone');
   const [factionTimeMode, setFactionTimeMode] = useState<FactionTimeMode>(() => {
     if (typeof window === 'undefined') return 'merged';
     return window.sessionStorage.getItem(FACTION_TIME_MODE_SESSION_KEY) === 'stacked' ? 'stacked' : 'merged';
@@ -524,8 +531,13 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
   const loadBuckets = buildLoadBuckets(period, scale, tasks);
   const maxLoad = Math.max(1, ...loadBuckets.map((bucket) => bucket.total));
   const mergedFactionMinutes = useMemo(() => TONES.reduce((values, tone) => ({ ...values, [tone]: mergedToneMinutes(tasks, tone, period, now) }), {} as Record<DashboardTone, number>), [now, period, tasks]);
+  const mergedTypeTime = useMemo(() => metrics.types.reduce((values, type) => ({ ...values, [type.label]: mergedTypeMinutes(tasks, type.label, period, now) }), {} as Record<string, number>), [metrics.types, now, period, tasks]);
   const colorSegments = metrics.tones.map((tone) => ({ id: tone.tone, label: TONE_META[tone.tone].label, value: factionTimeMode === 'merged' ? mergedFactionMinutes[tone.tone] : tone.minutes, color: `var(--dashboard-${tone.tone})` }));
-  const typeSegments = metrics.types.map((type, index) => ({ id: type.label, label: type.label, value: type.minutes, color: `color-mix(in srgb,var(--dashboard-${type.tone}) ${58 + index % 4 * 10}%,${index % 2 ? 'var(--color-paper)' : 'var(--color-ink)'})` }));
+  const typeSegments = metrics.types.map((type, index) => ({ id: type.label, label: type.label, value: factionTimeMode === 'merged' ? mergedTypeTime[type.label] : type.minutes, color: `color-mix(in srgb,var(--dashboard-${type.tone}) ${58 + index % 4 * 10}%,${index % 2 ? 'var(--color-paper)' : 'var(--color-ink)'})` }));
+  const allocationSegments = allocationDimension === 'tone' ? colorSegments : typeSegments;
+  const allocationMethodLabel = allocationDimension === 'tone'
+    ? `按颜色阵营分配 · ${factionTimeMode === 'merged' ? '同阵营重叠去重' : '逐任务耗时累计'}`
+    : `按任务类型分配 · ${factionTimeMode === 'merged' ? '同类型重叠去重' : '逐任务耗时累计'}`;
   const rankedTypes = [...metrics.types].sort((a, b) => typeRankMode === 'total' ? b.minutes - a.minutes : b.average - a.average);
   const maxTypeMetric = Math.max(1, ...rankedTypes.map((type) => typeRankMode === 'total' ? type.minutes : type.average));
   const periodDays = Math.round((+period.end - +period.start) / DAY_MS);
@@ -786,22 +798,28 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       groups: groups.map((group) => ({ id: group.id, label: group.label, countLabel: `${group.tasks.length} MISSIONS`, tone: group.tone, items: group.tasks.map((task) => makeTaskItem(task, taskStatusLabel(task.status))) })),
     });
   };
-  const openAllocationDrilldown = (kind: 'tone' | 'type', id: string, toneTimeMode: FactionTimeMode = 'stacked', compactTitle = false) => {
+  const openAllocationDrilldown = (kind: 'tone' | 'type', id: string, timeMode: FactionTimeMode = 'stacked', compactTitle = false) => {
     const tracked = tasks.map((task) => ({ task, minutes: intervalMinutes(task, period, now) })).filter((item) => item.minutes > 0);
     const matching = tracked.filter(({ task }) => kind === 'tone' ? task.tone === id : task.taskType === id).sort((a, b) => b.minutes - a.minutes);
-    const useMergedToneTime = kind === 'tone' && toneTimeMode === 'merged';
-    const selectedMinutes = useMergedToneTime ? mergedToneMinutes(tasks, id as DashboardTone, period, now) : matching.reduce((sum, item) => sum + item.minutes, 0);
-    const totalMinutes = useMergedToneTime ? TONES.reduce((sum, tone) => sum + mergedToneMinutes(tasks, tone, period, now), 0) : tracked.reduce((sum, item) => sum + item.minutes, 0);
+    const useMergedTime = timeMode === 'merged';
+    const selectedMinutes = useMergedTime
+      ? kind === 'tone' ? mergedToneMinutes(tasks, id as DashboardTone, period, now) : mergedTypeMinutes(tasks, id, period, now)
+      : matching.reduce((sum, item) => sum + item.minutes, 0);
+    const totalMinutes = useMergedTime
+      ? kind === 'tone'
+        ? TONES.reduce((sum, tone) => sum + mergedToneMinutes(tasks, tone, period, now), 0)
+        : metrics.types.reduce((sum, type) => sum + mergedTypeMinutes(tasks, type.label, period, now), 0)
+      : tracked.reduce((sum, item) => sum + item.minutes, 0);
     const ratio = totalMinutes ? selectedMinutes / totalMinutes * 100 : 0;
     const tone = kind === 'tone' ? id as DashboardTone : matching[0]?.task.tone ?? 'purple';
     const label = kind === 'tone' ? `${TONE_META[tone].signal} / ${TONE_META[tone].label}` : id;
     setDrilldown({
-      index: kind === 'tone' ? '05A' : '05B',
+      index: kind === 'tone' ? '04A' : '04B',
       title: compactTitle ? label : `${label} · TIME SHARE`,
       periodLabel: period.label,
       metric: `${ratio.toFixed(1)}%`,
       metricLabel: `${formatDuration(selectedMinutes)} OF ${formatDuration(totalMinutes)}`,
-      formula: `${formatDuration(selectedMinutes)} ${useMergedToneTime ? 'MERGED' : 'SELECTED'} TIME ÷ ${formatDuration(totalMinutes)} TOTAL TIME`,
+      formula: `${formatDuration(selectedMinutes)} ${useMergedTime ? 'MERGED' : 'STACKED'} TIME ÷ ${formatDuration(totalMinutes)} TOTAL TIME`,
       accent: kind === 'tone' ? tone : 'blue',
       groups: [{ id: 'contributors', label: 'CONTRIBUTING MISSIONS / 耗时来源', countLabel: `${matching.length} MISSIONS`, items: matching.map(({ task, minutes }) => makeTaskItem(task, formatDuration(minutes), `本周期计入 ${formatDuration(minutes)} · START ${formatMoment(task.startedAt)} · END ${task.status === 'completed' ? formatMoment(task.completedAt) : 'NOW'}`)) }],
     });
@@ -915,7 +933,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       </div>
     </section>
 
-    <div className="dashboard-section-heading"><div><span>DISCIPLINE CHECK</span><h3>执行战绩</h3></div><p>DEADLINE / VERDICT / REVISION</p></div>
+    <div className="dashboard-section-heading"><div><span>DISCIPLINE CHECK</span></div><p>DEADLINE / VERDICT / REVISION</p></div>
     <section className="discipline-arena" aria-label="执行质量">
       <article className="discipline-kpi in-time-kpi">
         <header><span>01 / FINAL DEADLINE</span><strong>IN-TIME RATE</strong><small>准时完成率</small><div className="in-time-header-tools"><div className={`grace-filter${graceMenuOpen ? ' is-open' : ''}`} ref={graceFilterRef}><button type="button" className="grace-filter-trigger" aria-haspopup="menu" aria-expanded={graceMenuOpen} onClick={() => setGraceMenuOpen((open) => !open)}><span>GRACE</span><strong>{graceLabel}</strong><i>⌄</i></button>{graceMenuOpen && <div className="grace-filter-menu" role="menu" aria-label="准时完成宽限规则"><span>DEADLINE BUFFER</span>{GRACE_OPTIONS.map((option, index) => <button key={option.value} type="button" role="menuitemradio" aria-checked={graceMinutes === option.value} className={graceMinutes === option.value ? 'active' : ''} onClick={() => { setGraceMinutes(option.value); setGraceMenuOpen(false); }}><i>{String(index + 1).padStart(2, '0')}</i><strong>{option.detail}</strong><b>{graceMinutes === option.value ? '◆' : '◇'}</b></button>)}</div>}</div></div></header>
@@ -929,16 +947,8 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       </article>
     </section>
 
-    <div className="dashboard-section-heading"><div><span>TACTICAL ANALYSIS</span><h3>行动解析</h3></div><p>FACTIONS / LOAD / RECOVERY</p></div>
+    <div className="dashboard-section-heading"><div><span>TACTICAL ANALYSIS</span></div><p>FACTIONS / LOAD / RECOVERY</p></div>
     <div className="dashboard-story-grid">
-      <section className="allocation-panel">
-        <header><div><span>05 / TIME FACTIONS</span><h3>ALLOCATION MAP</h3></div></header>
-        <div className="allocation-pies">
-          <PieChart title="FACTION SHARE" subtitle="4 COLOR FACTIONS" segments={colorSegments} headingControl={<div className="faction-time-mode" role="group" aria-label="四色阵营耗时计算方式"><button type="button" title="同色重叠时间只计算一次" aria-pressed={factionTimeMode === 'merged'} onClick={() => setFactionTimeMode('merged')}>MERGED</button><button type="button" title="每个任务耗时分别累计" aria-pressed={factionTimeMode === 'stacked'} onClick={() => setFactionTimeMode('stacked')}>STACKED</button></div>} onSegmentSelect={(segment) => openAllocationDrilldown('tone', segment.id, factionTimeMode)} />
-          <PieChart title="TYPE SHARE" subtitle="ALL TASK TYPES" segments={typeSegments} autoScrollLegend onSegmentSelect={(segment) => openAllocationDrilldown('type', segment.id)} />
-        </div>
-      </section>
-
       <div className="dashboard-left-rail">
       <section className="mission-load-panel">
         <header><div><span>03 / MISSION LEDGER</span><h3>OPERATION LOAD</h3></div><div className="operation-load-mode" role="group" aria-label="选择任务负载分类方式"><button type="button" aria-pressed={loadMode === 'factions'} onClick={() => setLoadMode('factions')}>FACTIONS</button><button type="button" aria-pressed={loadMode === 'priority'} onClick={() => setLoadMode('priority')}>PRIORITY</button></div></header>
@@ -956,21 +966,40 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       </section>
 
       <section className="recovery-panel">
-        <header><div><span>04 / REST ARCHIVE</span><h3>RECOVERY RHYTHM</h3></div></header>
-        <div className="recovery-score"><article><span>SLEEP AVG</span><strong>{metrics.sleepAverage === null ? '--' : formatDuration(metrics.sleepAverage)}</strong><small>{metrics.sleepCount} NIGHT RECORDS</small></article><article><span>ACTIVE DAYS</span><strong>{metrics.activeDays}<i>/{periodDays}</i></strong><small>{period.label}</small></article></div>
+        <header><div><span>05 / REST ARCHIVE</span><h3>RECOVERY RHYTHM</h3></div></header>
         <div className="sleep-rhythm-strip" ref={sleepRhythmRef}>
           {!sleepRhythm.length && <span className="recovery-empty">NO REST RECORDS / 本周期暂无睡眠记录</span>}
-          {sleepRhythm.map(({ record, minutes, sma7 }) => <i className="sleep-rhythm-bar" key={record.id} style={{ height: `${Math.min(100, minutes / (10 * 60) * 100)}%` }} data-tooltip={`${dateKey(new Date(record.wakeAt))}｜睡眠 ${formatDuration(minutes)}｜7D SMA ${formatDuration(sma7)}`} />)}
-          {activeSleepSmaGeometry && <><svg className="sleep-sma-overlay" style={{ left: activeSleepSmaGeometry.left, top: activeSleepSmaGeometry.top, width: activeSleepSmaGeometry.width, height: activeSleepSmaGeometry.height }} viewBox={`0 0 ${activeSleepSmaGeometry.width} ${activeSleepSmaGeometry.height}`} preserveAspectRatio="none" role="img" aria-label="睡眠时长 7 天简单移动平均">{activeSleepSmaGeometry.points.length > 1 && <><polyline className="sleep-sma-keyline" points={sleepSmaPointList} /><polyline className="sleep-sma-signal" points={sleepSmaPointList} /></>}{activeSleepSmaGeometry.points.map((point) => <circle key={point.id} cx={point.x} cy={point.y} r="3" />)}</svg><span className="sleep-sma-label" aria-hidden="true">7D SMA</span></>}
+          {sleepRhythm.map(({ record, minutes, sma7 }, index) => {
+            const wakeAt = new Date(record.wakeAt);
+            const axisLabel = `${wakeAt.getMonth() + 1}/${wakeAt.getDate()}`;
+            const previousWakeAt = index ? new Date(sleepRhythm[index - 1].record.wakeAt) : null;
+            const duplicateDay = previousWakeAt ? dateKey(previousWakeAt) === dateKey(wakeAt) : false;
+            const showLabel = !duplicateDay && (scale === 'week'
+              || (scale === 'quarter' ? index % 2 === 0 || index === sleepRhythm.length - 1 : wakeAt.getDate() === 1 || wakeAt.getDate() === 15 || index === 0 || index === sleepRhythm.length - 1));
+            return <i className="sleep-rhythm-bar" key={record.id} style={{ height: `${Math.min(100, minutes / (10 * 60) * 100)}%` }} data-axis-label={showLabel ? axisLabel : '·'} data-tooltip={`${dateKey(wakeAt)}｜睡眠 ${formatDuration(minutes)}｜7D SMA ${formatDuration(sma7)}`} />;
+          })}
+          {activeSleepSmaGeometry && <svg className="sleep-sma-overlay" style={{ left: activeSleepSmaGeometry.left, top: activeSleepSmaGeometry.top, width: activeSleepSmaGeometry.width, height: activeSleepSmaGeometry.height }} viewBox={`0 0 ${activeSleepSmaGeometry.width} ${activeSleepSmaGeometry.height}`} preserveAspectRatio="none" role="img" aria-label="睡眠时长 7 天简单移动平均">{activeSleepSmaGeometry.points.length > 1 && <><polyline className="sleep-sma-keyline" points={sleepSmaPointList} /><polyline className="sleep-sma-signal" points={sleepSmaPointList} /></>}{activeSleepSmaGeometry.points.map((point) => <circle key={point.id} cx={point.x} cy={point.y} r="3" />)}</svg>}
         </div>
-        <footer><span>ZERO</span><strong>REST RECORDS / 睡眠时长分布</strong><span>10H+</span></footer>
+        <footer><div className="recovery-footer-stats"><div><span>SLEEP AVG</span><strong>{metrics.sleepAverage === null ? '--' : formatDuration(metrics.sleepAverage)}</strong><small>{metrics.sleepCount} NIGHT RECORDS</small></div><div><span>ACTIVE DAYS</span><strong>{metrics.activeDays}<i>/{periodDays}</i></strong><small>{period.label}</small></div></div></footer>
       </section>
       </div>
 
+      <section className="allocation-panel">
+        <header><div><span>04 / TIME ALLOCATION</span><h3>ALLOCATION MAP</h3></div>
+        <div className="allocation-filter-deck">
+          <div className="operation-load-mode" role="group" aria-label="选择耗时分配维度"><button type="button" aria-pressed={allocationDimension === 'tone'} onClick={() => setAllocationDimension('tone')}>FACTIONS</button><button type="button" aria-pressed={allocationDimension === 'type'} onClick={() => setAllocationDimension('type')}>TYPES</button></div>
+          <div className="operation-load-mode" role="group" aria-label="选择耗时计算方式"><button type="button" title="同组重叠时间只计算一次" aria-pressed={factionTimeMode === 'merged'} onClick={() => setFactionTimeMode('merged')}>MERGED</button><button type="button" title="每个任务耗时分别累计" aria-pressed={factionTimeMode === 'stacked'} onClick={() => setFactionTimeMode('stacked')}>STACKED</button></div>
+        </div></header>
+        <div className="allocation-pies">
+          <PieChart key={`${allocationDimension}-${factionTimeMode}`} title={allocationDimension === 'tone' ? '阵营耗时占比' : '任务类型耗时占比'} segments={allocationSegments} autoScrollLegend onSegmentSelect={(segment) => openAllocationDrilldown(allocationDimension, segment.id, factionTimeMode)} />
+        </div>
+        <footer className="allocation-footer"><span>{allocationMethodLabel}</span></footer>
+      </section>
+
       <details className="dashboard-detail-section">
-      <summary><span>TIME INTELLIGENCE</span><small>展开情报 · 阵营耗时 / 类型排名</small><b aria-hidden="true">＋</b></summary>
+      <summary><div><small>06 / PERFORMANCE SCAN</small><span>TIME INTELLIGENCE</span></div><b aria-hidden="true">＋</b></summary>
       <section className="time-rank-panel">
-        <header><div><span>06 / PERFORMANCE SCAN</span><h3>TIME INTELLIGENCE</h3></div><div className="type-rank-mode" role="group" aria-label="选择任务类型排名依据"><button type="button" aria-pressed={typeRankMode === 'total'} onClick={() => setTypeRankMode('total')}>TOTAL 排名</button><button type="button" aria-pressed={typeRankMode === 'average'} onClick={() => setTypeRankMode('average')}>AVG 排名</button></div></header>
+        <div className="time-rank-toolbar"><span>RANKING PROTOCOL / 排名方式</span><div className="operation-load-mode type-rank-mode" role="group" aria-label="选择任务类型排名依据"><button type="button" aria-pressed={typeRankMode === 'total'} onClick={() => setTypeRankMode('total')}>TOTAL</button><button type="button" aria-pressed={typeRankMode === 'average'} onClick={() => setTypeRankMode('average')}>AVERAGE</button></div></div>
         <div className="color-time-roster">{metrics.tones.map((tone) => <article key={tone.tone} className={`tone-${tone.tone} is-actionable`} role="button" tabIndex={0} aria-label={`${TONE_META[tone.tone].label}耗时明细`} onClick={() => openAllocationDrilldown('tone', tone.tone, 'stacked', true)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openAllocationDrilldown('tone', tone.tone, 'stacked', true); } }}><i /><div><span>{TONE_META[tone.tone].signal}</span><strong>{TONE_META[tone.tone].label}</strong></div><dl><div><dt>TOTAL</dt><dd>{formatDuration(tone.minutes)}</dd></div><div><dt>AVG / TASK</dt><dd>{formatDuration(tone.average)}</dd></div><div><dt>TASKS</dt><dd>{tone.count}</dd></div></dl></article>)}</div>
         <div className="type-rank-head"><span>RANK / TYPE</span><span>{typeRankMode === 'total' ? 'TOTAL SCALE' : 'AVG SCALE'}</span><span>TOTAL</span><span>AVG</span><span>SHARE</span></div>
         <div className="type-rank-list">{rankedTypes.map((type, index) => {

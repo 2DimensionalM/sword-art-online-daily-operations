@@ -70,65 +70,92 @@
 .view-dashboard .life-dashboard .grace-filter-trigger { min-height: 44px; }
 .view-dashboard .life-dashboard .kpi-snapshot { padding: 22px 16px; }
 .view-dashboard .life-dashboard .kpi-snapshot > strong { font-size: clamp(2.7rem,4vw,4.4rem); }
-.view-dashboard .life-dashboard .dashboard-story-grid { display: flex; flex-direction: column; gap: 24px; }
-.view-dashboard .life-dashboard .allocation-panel { height: auto; overflow: visible; transform: none; }
-.view-dashboard .life-dashboard .allocation-pies { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; height: auto; }
-.view-dashboard .life-dashboard .p4-pie-figure { display: flex; flex-direction: column; margin: 0; border-bottom: 0; min-width: 0; }
-.view-dashboard .life-dashboard .p4-pie-figure:first-child { border-right: 4px solid var(--color-ink); }
-.view-dashboard .life-dashboard .p4-pie-heading { height: 78px; min-height: 78px; flex-wrap: nowrap; gap: 10px; padding: 12px 18px; background: var(--color-paper); border-bottom: 2px solid var(--color-ink); box-shadow: none; }
-.view-dashboard .life-dashboard .p4-pie-heading .allocation-chart-title { display: grid; justify-content: start; gap: 5px; }
-.view-dashboard .life-dashboard .allocation-chart-title strong { font: 1000 1rem/1 var(--font-display); }
-.view-dashboard .life-dashboard .allocation-chart-title span { font-size: .58rem; letter-spacing: .08em; }
-.view-dashboard .life-dashboard .p4-pie-figure .p4-pie-stage { height: 252px; min-height: 252px; padding: 0; background: none; perspective: none; overflow: visible; }
+.view-dashboard .life-dashboard .dashboard-story-grid { display: grid; grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); grid-template-areas: 'left allocation' 'detail detail'; gap: 24px; align-items: start; }
+.view-dashboard .life-dashboard .mission-load-panel { overflow: visible; }
+.view-dashboard .life-dashboard .allocation-panel { grid-area: allocation; display: flex; flex-direction: column; height: 680px; overflow: hidden; transform: none; }
+.view-dashboard .life-dashboard .allocation-panel > header { flex: 0 0 88px; min-height: 88px; display: grid; grid-template-columns: minmax(0,1fr) auto; grid-template-rows: auto 1fr; align-items: end; gap: 3px 9px; padding: 9px 12px 10px; }
+.view-dashboard .life-dashboard .allocation-panel > header > div:first-child { display: contents; }
+.view-dashboard .life-dashboard .allocation-panel > header > div:first-child > span { grid-column: 1 / -1; align-self: start; }
+.view-dashboard .life-dashboard .allocation-panel > header > div:first-child > h3 { grid-column: 1; align-self: center; margin: 0; font-size: clamp(1.1rem,1.55vw,1.45rem); }
+.view-dashboard .life-dashboard .allocation-filter-deck { grid-column: 2; align-self: center; display: flex; flex-wrap: nowrap; gap: 5px; margin-left: auto; }
+.view-dashboard .life-dashboard .allocation-filter-deck .operation-load-mode { margin: 0; }
+.view-dashboard .life-dashboard .allocation-footer { display: flex; align-items: center; justify-content: flex-start; gap: 8px; flex: 0 0 46px; padding: 8px 15px; color: var(--color-paper); background: var(--color-ink); border-top: 4px solid var(--color-signal); font: 900 .7rem/1.3 var(--font-ui); letter-spacing: .03em; }
+.view-dashboard .life-dashboard .allocation-pies { display: block; flex: 1; min-height: 0; height: auto; }
+.view-dashboard .life-dashboard .p4-pie-figure { display: grid; grid-template-rows: 304px 234px; height: 538px; margin: 0; border-bottom: 0; min-width: 0; }
+.view-dashboard .life-dashboard .p4-pie-figure .p4-pie-stage { height: 304px; min-height: 0; padding: 0 0 18px; background: none; perspective: 920px; overflow: hidden; }
 .view-dashboard .life-dashboard .p4-pie-stage::before,
 .view-dashboard .life-dashboard .p4-pie-stage::after { display: none; }
-.view-dashboard .life-dashboard .p4-pie-disc { width: 212px; height: 212px; border: 0; background: transparent; transform: none; filter: none; }
-.view-dashboard .life-dashboard .p4-pie-disc::before,
-.view-dashboard .life-dashboard .p4-pie-disc::after { display: none; }
+.view-dashboard .life-dashboard .p4-pie-disc { width: min(250px,76%); height: auto; aspect-ratio: 1; border: 5px solid var(--color-ink); background: var(--color-paper); transform: translateY(-2px) rotateX(25deg) rotateZ(-6deg); transform-style: preserve-3d; filter: drop-shadow(9px 13px 0 rgb(17 18 15 / 24%)); }
+.view-dashboard .life-dashboard .p4-pie-disc::before { display: block; content: ''; position: absolute; z-index: -2; inset: -5px; border: 5px solid var(--color-ink); border-radius: 50%; background: var(--color-ink); transform: translate3d(8px,12px,-18px); box-shadow: 3px 4px 0 var(--color-signal-deep); }
+.view-dashboard .life-dashboard .p4-pie-disc::after { display: block; content: ''; position: absolute; z-index: 2; inset: 62px; border: 4px solid var(--color-ink); border-radius: 50%; background: var(--color-paper); box-shadow: inset 4px 5px 0 rgb(17 18 15 / 9%); transform: translate3d(2px,3px,8px); pointer-events: none; }
 .view-dashboard .life-dashboard .p4-pie-base { stroke: var(--color-ink); stroke-width: 46px; }
 .view-dashboard .life-dashboard .p4-pie-segment { stroke-width: 40px; }
-.view-dashboard .life-dashboard .p4-pie-segment:is(:hover,:focus,.is-highlighted) { stroke-width: 45px; filter: none; }
-.view-dashboard .life-dashboard .p4-pie-figure figcaption { position: static; height: 210px; overflow-y: auto; align-content: start; padding: 8px 14px 12px; gap: 2px 12px; border-top: 2px solid var(--color-ink); scrollbar-width: thin; scrollbar-color: var(--color-ink) var(--color-signal); }
+.view-dashboard .life-dashboard .p4-pie-segment:is(:hover,:focus,.is-highlighted) { stroke-width: 45px; filter: drop-shadow(2px 3px 0 var(--color-ink)); }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption { position: static; grid-template-columns: minmax(0,1fr); height: 234px; min-height: 0; overflow-y: auto; align-content: start; padding: 7px 14px 10px; gap: 2px 12px; border-top: 2px solid var(--color-ink); scrollbar-width: thin; scrollbar-color: var(--color-ink) var(--color-signal); }
 .view-dashboard .life-dashboard .p4-pie-figure figcaption > button { border-bottom: 1px solid color-mix(in srgb,var(--color-ink) 20%,transparent); transform: none; box-shadow: none; }
-.view-dashboard .life-dashboard .p4-pie-figure figcaption i { height: 12px; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption i { width: 11px; height: 15px; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption strong { font-size: .78rem; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption small { font-size: .82rem; }
 .view-dashboard .life-dashboard .allocation-empty { grid-column: 1 / -1; text-align: center; padding: 24px 0; font-size: 12px; }
-.view-dashboard .life-dashboard .p4-pie-figure figcaption > button { min-height: 44px; }
-.view-dashboard .life-dashboard .p4-pie-figure:first-child figcaption { grid-template-columns: 1fr; }
-.view-dashboard .life-dashboard .faction-time-mode button { min-height: 44px; padding-inline: 9px; }
-.view-dashboard .life-dashboard .dashboard-left-rail { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; gap: 24px; height: auto; }
-.view-dashboard .life-dashboard .recovery-panel { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 88px 104px 170px minmax(44px,auto); height: auto; align-self: start; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption > button { min-height: 46px; gap: 9px; padding-inline: 7px; }
+.view-dashboard .life-dashboard .dashboard-left-rail { grid-area: left; grid-template-columns: minmax(0,1fr); grid-template-rows: 340px 316px; gap: 24px; height: 680px; }
+.view-dashboard .life-dashboard .dashboard-left-rail > section { height: 316px; align-self: stretch; }
+.view-dashboard .life-dashboard .dashboard-left-rail > .mission-load-panel { height: 340px; }
+.view-dashboard .life-dashboard .recovery-panel { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 72px 176px 60px; height: 316px; align-self: stretch; }
 .view-dashboard .life-dashboard .recovery-panel > header { grid-column: 1; }
-.view-dashboard .life-dashboard .recovery-score { grid-template-columns: 1fr 1fr; border: 0; border-bottom: 2px solid var(--color-ink); }
-.view-dashboard .life-dashboard .recovery-score article { min-height: 0; grid-template-rows: auto auto auto; gap: 8px; padding: 12px 18px; }
-.view-dashboard .life-dashboard .recovery-score strong { font-size: 1.8rem; }
-.view-dashboard .life-dashboard .recovery-score :is(span,small) { font-size: .6rem; }
-.view-dashboard .life-dashboard .sleep-rhythm-strip { height: 170px; min-height: 170px; justify-content: space-around; gap: 5px; padding: 30px 18px 14px; }
+.view-dashboard .life-dashboard .sleep-rhythm-strip { height: 176px; min-height: 176px; justify-content: space-around; gap: 5px; padding: 18px 18px 25px; }
+.view-dashboard .life-dashboard .sleep-rhythm-bar::before { content: attr(data-axis-label); position: absolute; top: calc(100% + 8px); left: 50%; color: var(--color-ink); font: 1000 .61rem/1 var(--font-ui); white-space: nowrap; transform: translateX(-50%); }
 .view-dashboard .life-dashboard .sleep-rhythm-strip i { min-width: 0; max-width: 30px; }
 .view-dashboard .life-dashboard .recovery-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; }
-.view-dashboard .life-dashboard .recovery-panel > footer { grid-column: 1; min-height: 44px; padding: 8px 14px; border-top: 2px solid var(--color-ink); }
-.view-dashboard .life-dashboard .mission-load-chart { height: 274px; }
+.view-dashboard .life-dashboard .recovery-panel > footer { grid-column: 1; min-height: 60px; padding: 0; border-top: 4px solid var(--dashboard-blue); }
+.view-dashboard .life-dashboard .recovery-footer-stats { display: grid; grid-template-columns: 1fr 1fr; width: 100%; min-width: 0; }
+.view-dashboard .life-dashboard .recovery-footer-stats > div { display: grid; grid-template-columns: auto auto; grid-template-rows: auto auto; align-content: center; align-items: baseline; min-width: 0; gap: 2px 7px; padding: 7px 12px; }
+.view-dashboard .life-dashboard .recovery-footer-stats > div + div { border-left: 1px solid color-mix(in srgb,var(--color-paper) 42%,transparent); }
+.view-dashboard .life-dashboard .recovery-footer-stats span { color: var(--color-paper); font: 1000 .52rem/1 var(--font-ui); letter-spacing: .06em; }
+.view-dashboard .life-dashboard .recovery-footer-stats strong { display: flex; align-items: baseline; min-width: 0; margin: 0; color: var(--color-paper); font: italic 1000 1.15rem/1 var(--font-display); letter-spacing: -.04em; white-space: nowrap; }
+.view-dashboard .life-dashboard .recovery-footer-stats strong i { color: var(--color-muted); font-size: .48em; font-style: normal; }
+.view-dashboard .life-dashboard .recovery-footer-stats small { grid-column: 1 / -1; overflow: hidden; color: var(--color-muted); font: 900 .46rem/1 var(--font-ui); text-overflow: ellipsis; white-space: nowrap; }
+.view-dashboard .life-dashboard .mission-load-chart { height: 214px; }
 .view-dashboard .life-dashboard .mission-load-chart > div { grid-template-columns: minmax(0,1fr); }
 .view-dashboard .life-dashboard .mission-load-chart > div > i { width: min(30px,70%); min-height: 0; }
 .view-dashboard .life-dashboard .mission-load-chart > div.is-empty > i { border: 0; box-shadow: none; overflow: visible; }
 .view-dashboard .life-dashboard .mission-load-chart > div.is-empty > i::after { content: ''; position: absolute; bottom: 0; left: 50%; width: 3px; height: 2px; transform: translateX(-50%); background: var(--color-ink); }
 .view-dashboard.theme-night .life-dashboard .mission-load-chart > div.is-empty > i::after { background: var(--dashboard-night-muted); }
-.view-dashboard .life-dashboard .mission-load-panel > header { min-height: 88px; flex-wrap: wrap; }
-.view-dashboard .life-dashboard .operation-load-mode button { min-height: 44px; }
-.view-dashboard .life-dashboard .mission-load-panel footer { min-height: 44px; flex-wrap: wrap; gap: 8px; }
+.view-dashboard .life-dashboard .mission-load-panel > header { min-height: 72px; height: 72px; flex-wrap: wrap; }
+.view-dashboard .life-dashboard .operation-load-mode { gap: 2px; padding: 2px; border: 1px solid #77786d; transform: skewX(-8deg); box-shadow: 2px 2px 0 rgb(0 0 0 / 45%); }
+.view-dashboard .life-dashboard .operation-load-mode button { position: relative; min-height: 28px; padding: 4px 6px; border-width: 0 1px 0 0; clip-path: polygon(4px 0,100% 0,calc(100% - 4px) 100%,0 100%); font-size: .5rem; letter-spacing: .045em; box-shadow: none; }
+.view-dashboard .life-dashboard .operation-load-mode button:last-child { border-right: 0; }
+.view-dashboard .life-dashboard .operation-load-mode button:hover,
+.view-dashboard .life-dashboard .operation-load-mode button:focus-visible { outline: 1px solid var(--color-signal); outline-offset: 1px; transform: translateY(-1px); }
+.view-dashboard .life-dashboard .operation-load-mode button[aria-pressed='true'] { border-color: var(--color-paper); box-shadow: inset 0 -3px 0 color-mix(in srgb,var(--color-ink) 18%,transparent); }
+.view-dashboard .life-dashboard .p4-chart-tooltip,
+.view-dashboard .life-dashboard .mission-load-chart > div::after,
+.view-dashboard .life-dashboard .type-rank-list article::after,
+.view-dashboard .life-dashboard .sleep-rhythm-strip i::after { max-width: 290px; padding: 10px 13px; font-size: .8rem; line-height: 1.4; }
+.view-dashboard .life-dashboard .p4-chart-tooltip span { font-size: .7rem; }
+.view-dashboard .life-dashboard .p4-chart-tooltip strong { margin-top: 5px; font-size: 1.45rem; }
+.view-dashboard .life-dashboard .p4-chart-tooltip small { margin-top: 5px; font-size: .74rem; }
+.view-dashboard .life-dashboard .mission-load-panel footer { min-height: 46px; height: 46px; flex-wrap: wrap; gap: 8px; }
 .view-dashboard.theme-night .life-dashboard .p4-pie-heading { color: var(--dashboard-night-text); background: var(--dashboard-night-raised); border-color: var(--dashboard-night-line); }
+.view-dashboard.theme-night .life-dashboard .allocation-filter-deck { color: var(--dashboard-night-text); background: var(--dashboard-night-raised); border-color: var(--dashboard-night-line); }
+.view-dashboard.theme-night .life-dashboard .allocation-filter + .allocation-filter { border-color: var(--dashboard-night-line); }
 .view-dashboard.theme-night .life-dashboard .p4-pie-base { stroke: var(--dashboard-night-line); }
 .view-dashboard.theme-night .life-dashboard .p4-pie-figure figcaption { border-color: var(--dashboard-night-line); }
-.view-dashboard .life-dashboard .dashboard-detail-section { min-width: 0; border: 4px solid var(--color-ink); background: var(--color-paper); box-shadow: 6px 7px 0 var(--color-ink); }
-.view-dashboard .life-dashboard .dashboard-detail-section > summary { display: flex; align-items: center; gap: 18px; min-height: 70px; padding: 16px 20px; color: var(--color-paper); background: var(--color-ink); cursor: pointer; list-style: none; }
+.view-dashboard .life-dashboard .dashboard-detail-section { grid-area: detail; min-width: 0; border: 4px solid var(--color-ink); background: var(--color-paper); box-shadow: 6px 7px 0 var(--color-ink); }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary { display: flex; align-items: center; gap: 18px; min-height: 82px; padding: 12px 18px; color: var(--color-paper); background: var(--color-ink); border-bottom: 5px solid var(--color-signal); cursor: pointer; list-style: none; }
 .view-dashboard .life-dashboard .dashboard-detail-section > summary::-webkit-details-marker { display: none; }
-.view-dashboard .life-dashboard .dashboard-detail-section > summary span { font: italic 1000 1.5rem/1 var(--font-display); }
-.view-dashboard .life-dashboard .dashboard-detail-section > summary small { color: var(--color-signal); font-size: .72rem; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary > div { display: grid; gap: 5px; min-width: 0; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary span { font: 1000 1.45rem/1 var(--font-display); letter-spacing: -.035em; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary small { color: var(--color-signal); font: 1000 .58rem/1 var(--font-ui); letter-spacing: .08em; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary em { color: var(--color-signal); font: 900 .67rem/1.3 var(--font-ui); font-style: normal; }
 .view-dashboard .life-dashboard .dashboard-detail-section > summary b { margin-left: auto; color: var(--color-signal); font-size: 26px; }
 .view-dashboard .life-dashboard .dashboard-detail-section > summary:focus-visible { outline: 3px solid var(--color-signal); outline-offset: -5px; }
 .view-dashboard .life-dashboard .dashboard-detail-section[open] > summary b { transform: rotate(45deg); }
 .view-dashboard .life-dashboard .time-rank-panel { transform: none; }
-.view-dashboard .life-dashboard .time-rank-panel > header { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px; color: var(--color-paper); background: var(--color-ink); border-top: 2px solid var(--color-paper); }
-.view-dashboard .life-dashboard .time-rank-panel > header h3 { margin: 5px 0 0; font: 1000 1.4rem var(--font-display); }
+.view-dashboard .life-dashboard .time-rank-toolbar { display: flex; align-items: center; justify-content: flex-end; gap: 12px; min-height: 48px; padding: 7px 14px; color: var(--color-paper); background: var(--color-ink); border-bottom: 2px solid var(--color-paper); }
+.view-dashboard .life-dashboard .time-rank-toolbar > span { margin-right: auto; color: var(--color-signal); font: 1000 .58rem/1 var(--font-ui); letter-spacing: .07em; }
+.view-dashboard .life-dashboard .time-rank-toolbar .type-rank-mode { width: auto; margin: 0; }
+.view-dashboard .life-dashboard .time-rank-toolbar .type-rank-mode button { flex: initial; min-height: 28px; padding: 4px 7px; border-width: 0 1px 0 0; font-size: .5rem; box-shadow: none; }
 .view-dashboard .life-dashboard .goal-radar { margin: 8px 0; box-shadow: 6px 7px 0 var(--color-ink); }
 .view-dashboard .life-dashboard .goal-radar h2 span { display: inline-block; margin-left: 12px; padding: 4px 8px; color: var(--color-ink); background: var(--color-signal); font: 900 .72rem/1.4 var(--font-ui); vertical-align: middle; }
 .view-dashboard .life-dashboard .goal-radar article { padding: 18px; }
@@ -144,7 +171,11 @@
   .view-dashboard .life-dashboard .period-control { width: 100%; }
   .view-dashboard .life-dashboard .campaign-overview-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
   .view-dashboard .life-dashboard .discipline-arena { grid-template-columns: 1fr; }
-  .view-dashboard .life-dashboard .dashboard-left-rail { grid-template-columns: 1fr; }
+  .view-dashboard .life-dashboard .dashboard-story-grid { grid-template-columns: 1fr; grid-template-areas: 'load' 'allocation' 'recovery' 'detail'; }
+  .view-dashboard .life-dashboard .dashboard-left-rail { display: contents; }
+  .view-dashboard .life-dashboard .mission-load-panel { grid-area: load; }
+  .view-dashboard .life-dashboard .recovery-panel { grid-area: recovery; }
+  .view-dashboard .life-dashboard .allocation-panel { height: 680px; }
 }
 @media (max-width: 760px) {
   .view-dashboard .life-dashboard { gap: 20px; padding-right: 6px; }
@@ -163,8 +194,11 @@
   .view-dashboard .life-dashboard .dashboard-section-heading p { display: none; }
   .view-dashboard .life-dashboard .discipline-kpi { grid-template-columns: 1fr; grid-template-rows: auto; }
   .view-dashboard .life-dashboard .discipline-kpi header { grid-column: 1; min-height: 80px; }
-  .view-dashboard .life-dashboard .allocation-pies { grid-template-columns: 1fr; }
-  .view-dashboard .life-dashboard .p4-pie-figure:first-child { border-right: 0; border-bottom: 4px solid var(--color-ink); }
+  .view-dashboard .life-dashboard .allocation-panel > header { gap: 3px 5px; padding-inline: 9px; }
+  .view-dashboard .life-dashboard .allocation-panel > header > div:first-child > h3 { font-size: .98rem; letter-spacing: -.045em; }
+  .view-dashboard .life-dashboard .allocation-filter-deck { gap: 3px; }
+  .view-dashboard .life-dashboard .allocation-filter-deck .operation-load-mode { gap: 1px; padding: 1px; }
+  .view-dashboard .life-dashboard .allocation-filter-deck button { min-height: 26px; padding-inline: 4px; font-size: .43rem; }
   .view-dashboard .life-dashboard .dashboard-detail-section > summary { flex-wrap: wrap; gap: 10px; padding: 15px; }
   .view-dashboard .life-dashboard .dashboard-detail-section > summary span { font-size: 1.15rem; }
   .view-dashboard .life-dashboard .campaign-shortcuts { grid-template-columns: 1fr 1fr; }
