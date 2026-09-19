@@ -814,7 +814,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
     const tone = kind === 'tone' ? id as DashboardTone : matching[0]?.task.tone ?? 'purple';
     const label = kind === 'tone' ? `${TONE_META[tone].signal} / ${TONE_META[tone].label}` : id;
     setDrilldown({
-      index: kind === 'tone' ? '04A' : '04B',
+      index: kind === 'tone' ? '05A' : '05B',
       title: compactTitle ? label : `${label} · TIME SHARE`,
       periodLabel: period.label,
       metric: `${ratio.toFixed(1)}%`,
@@ -966,7 +966,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       </section>
 
       <section className="recovery-panel">
-        <header><div><span>05 / REST ARCHIVE</span><h3>RECOVERY RHYTHM</h3></div></header>
+        <header><div><span>04 / REST ARCHIVE</span><h3>RECOVERY RHYTHM</h3></div></header>
         <div className="sleep-rhythm-strip" ref={sleepRhythmRef}>
           {!sleepRhythm.length && <span className="recovery-empty">NO REST RECORDS / 本周期暂无睡眠记录</span>}
           {sleepRhythm.map(({ record, minutes, sma7 }, index) => {
@@ -985,7 +985,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       </div>
 
       <section className="allocation-panel">
-        <header><div><span>04 / TIME ALLOCATION</span><h3>ALLOCATION MAP</h3></div>
+        <header><div><span>05 / TIME ALLOCATION</span><h3>ALLOCATION MAP</h3></div>
         <div className="allocation-filter-deck">
           <div className="operation-load-mode" role="group" aria-label="选择耗时分配维度"><button type="button" aria-pressed={allocationDimension === 'tone'} onClick={() => setAllocationDimension('tone')}>FACTIONS</button><button type="button" aria-pressed={allocationDimension === 'type'} onClick={() => setAllocationDimension('type')}>TYPES</button></div>
           <div className="operation-load-mode" role="group" aria-label="选择耗时计算方式"><button type="button" title="同组重叠时间只计算一次" aria-pressed={factionTimeMode === 'merged'} onClick={() => setFactionTimeMode('merged')}>MERGED</button><button type="button" title="每个任务耗时分别累计" aria-pressed={factionTimeMode === 'stacked'} onClick={() => setFactionTimeMode('stacked')}>STACKED</button></div>
