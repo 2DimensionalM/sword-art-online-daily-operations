@@ -1969,10 +1969,10 @@ export default function Home() {
     </header>
 
     {view === 'signals' && <SignalRoom signals={signals} taskTypes={settings.taskTypes.map((item) => item.value)} onDirtyChange={setSignalDirty} />}
-    {view === 'dashboard' && <GoalRadar signals={signals} today={localDateKey(now)} onOpen={() => navigateTo('signals')} />}
 
     {view === 'dashboard' && <LifeDashboard
       username={settings.username}
+      goalRadar={<GoalRadar signals={signals} today={localDateKey(now)} onOpen={() => navigateTo('signals')} />}
       now={now}
       tasks={dashboardTasks}
       sleepRecords={sleepRecords}

@@ -1,0 +1,172 @@
+/* LIFE COMMAND composition. Shared shell, identity, palette and dialogs remain canonical. */
+.view-dashboard .life-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 3px 8px 24px 3px;
+}
+.view-dashboard .life-dashboard:has(.dashboard-drilldown-backdrop,.dashboard-calendar-backdrop) { z-index: 40; }
+.view-dashboard .life-dashboard .campaign-header {
+  grid-template-columns: minmax(230px,1fr) minmax(240px,.9fr) minmax(250px,.95fr);
+  min-height: 166px;
+  clip-path: none;
+  box-shadow: 6px 7px 0 var(--color-ink);
+  overflow: visible;
+}
+.view-dashboard .life-dashboard .campaign-header::after { display: none; }
+.view-dashboard .life-dashboard .campaign-title { padding: 22px; }
+.view-dashboard .life-dashboard .campaign-title h2 { font-size: clamp(2.8rem,4vw,4rem); line-height: .82; }
+.view-dashboard .life-dashboard .campaign-title > span { font-size: .62rem; }
+.view-dashboard .life-dashboard .campaign-title p { margin-top: 15px; font-size: .72rem; white-space: normal; line-height: 1.4; }
+.view-dashboard .life-dashboard .campaign-scale { padding: 16px 10px; transform: none; }
+.view-dashboard .life-dashboard .campaign-scale button { min-height: 70px; }
+.view-dashboard .life-dashboard .period-selector { padding: 20px 20px 20px 54px; }
+.view-dashboard .life-dashboard .campaign-overview { transform: none; clip-path: none; box-shadow: 6px 7px 0 var(--color-ink); }
+.view-dashboard .life-dashboard .campaign-overview::after { display: none; }
+.view-dashboard .life-dashboard .campaign-overview > header { min-height: 74px; }
+.view-dashboard .life-dashboard .campaign-overview-grid { gap: 2px; padding: 0; }
+.view-dashboard .life-dashboard .overview-stat {
+  min-height: 156px;
+  padding: 16px 18px;
+  clip-path: none;
+  background: var(--color-paper);
+}
+.view-dashboard .life-dashboard .overview-stat::before { height: 4px; width: 32px; top: 14px; right: 14px; background: var(--color-ink); clip-path: none; }
+.view-dashboard .life-dashboard .overview-stat::after { display: none; }
+.view-dashboard .life-dashboard .overview-stat > span i { background: var(--color-signal); }
+.view-dashboard .life-dashboard .overview-stat > span::after { content: ''; margin-left: auto; color: var(--stat-tone); opacity: 0; }
+.view-dashboard .life-dashboard .overview-stat > strong { font-size: clamp(2rem,3vw,3.15rem); }
+.view-dashboard .life-dashboard .overview-stat > strong small { color: inherit; }
+.view-dashboard .life-dashboard .overview-stat > small { display: block; white-space: normal; font-size: .65rem; }
+.view-dashboard .life-dashboard .overview-stat:is(:hover,:focus-visible) { z-index: 4; color: var(--color-paper); background: linear-gradient(147deg, var(--color-ink) 0 70%, color-mix(in srgb, var(--stat-tone) 65%, var(--color-ink)) 70.5% 100%); outline: 3px solid var(--color-paper); outline-offset: -4px; box-shadow: 8px 10px 0 var(--stat-tone); filter: saturate(1.18); transform: translate(-5px,-7px) rotate(-1.15deg) scale(1.025); animation: dashboardStatHit 310ms var(--ease-snap) both; }
+.view-dashboard .life-dashboard .overview-stat:nth-child(3n + 2):is(:hover,:focus-visible) { transform: translate(4px,-8px) rotate(1.2deg) scale(1.025); }
+.view-dashboard .life-dashboard .overview-stat:is(:hover,:focus-visible) > :is(span,strong,p,small) { color: var(--color-paper); }
+.view-dashboard .life-dashboard .overview-stat:is(:hover,:focus-visible) > span i { color: var(--color-ink); transform: rotate(-5deg) scale(1.12); }
+.view-dashboard .life-dashboard .overview-stat:is(:hover,:focus-visible) > span::after { content: 'OPEN ▶'; color: var(--color-paper); opacity: 1; }
+.view-dashboard .life-dashboard .dashboard-section-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  margin: 12px 0 -10px;
+  padding: 13px 20px;
+  color: var(--color-paper);
+  background: var(--color-ink);
+  border-left: 8px solid var(--color-paper);
+  box-shadow: 5px 5px 0 var(--color-ink);
+  clip-path: polygon(0 0,98.5% 0,100% 100%,0 100%);
+}
+.view-dashboard .life-dashboard .dashboard-section-heading > div { display: flex; align-items: baseline; flex-wrap: wrap; gap: 12px; }
+.view-dashboard .life-dashboard .dashboard-section-heading span { font: italic 1000 1.45rem/1 var(--font-display); letter-spacing: -.03em; }
+.view-dashboard .life-dashboard .dashboard-section-heading h3 { margin: 0; font: 800 .78rem/1.4 var(--font-body); color: var(--color-signal); }
+.view-dashboard .life-dashboard .dashboard-section-heading p { margin: 0; font: 800 .65rem/1.4 var(--font-ui); color: var(--color-signal); }
+.view-dashboard .life-dashboard .discipline-arena { gap: 22px; }
+.view-dashboard .life-dashboard .discipline-kpi { grid-template-columns: minmax(155px,.8fr) minmax(0,1.2fr); grid-template-rows: 79px 1fr; transform: none; box-shadow: 6px 7px 0 var(--color-ink); }
+.view-dashboard .life-dashboard .discipline-kpi header { padding: 12px; }
+.view-dashboard .life-dashboard .discipline-kpi header > strong { font-size: 1.35rem; }
+.view-dashboard .life-dashboard .discipline-kpi header > span { font-size: .58rem; }
+.view-dashboard .life-dashboard .in-time-kpi header { column-gap: 10px; }
+.view-dashboard .life-dashboard .in-time-kpi header > small { font-size: .62rem; }
+.view-dashboard .life-dashboard .grace-filter-trigger { min-height: 44px; }
+.view-dashboard .life-dashboard .kpi-snapshot { padding: 22px 16px; }
+.view-dashboard .life-dashboard .kpi-snapshot > strong { font-size: clamp(2.7rem,4vw,4.4rem); }
+.view-dashboard .life-dashboard .dashboard-story-grid { display: flex; flex-direction: column; gap: 24px; }
+.view-dashboard .life-dashboard .allocation-panel { height: auto; overflow: visible; transform: none; }
+.view-dashboard .life-dashboard .allocation-pies { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; height: auto; }
+.view-dashboard .life-dashboard .p4-pie-figure { display: flex; flex-direction: column; margin: 0; border-bottom: 0; min-width: 0; }
+.view-dashboard .life-dashboard .p4-pie-figure:first-child { border-right: 4px solid var(--color-ink); }
+.view-dashboard .life-dashboard .p4-pie-heading { height: 78px; min-height: 78px; flex-wrap: nowrap; gap: 10px; padding: 12px 18px; background: var(--color-paper); border-bottom: 2px solid var(--color-ink); box-shadow: none; }
+.view-dashboard .life-dashboard .p4-pie-heading .allocation-chart-title { display: grid; justify-content: start; gap: 5px; }
+.view-dashboard .life-dashboard .allocation-chart-title strong { font: 1000 1rem/1 var(--font-display); }
+.view-dashboard .life-dashboard .allocation-chart-title span { font-size: .58rem; letter-spacing: .08em; }
+.view-dashboard .life-dashboard .p4-pie-figure .p4-pie-stage { height: 252px; min-height: 252px; padding: 0; background: none; perspective: none; overflow: visible; }
+.view-dashboard .life-dashboard .p4-pie-stage::before,
+.view-dashboard .life-dashboard .p4-pie-stage::after { display: none; }
+.view-dashboard .life-dashboard .p4-pie-disc { width: 212px; height: 212px; border: 0; background: transparent; transform: none; filter: none; }
+.view-dashboard .life-dashboard .p4-pie-disc::before,
+.view-dashboard .life-dashboard .p4-pie-disc::after { display: none; }
+.view-dashboard .life-dashboard .p4-pie-base { stroke: var(--color-ink); stroke-width: 46px; }
+.view-dashboard .life-dashboard .p4-pie-segment { stroke-width: 40px; }
+.view-dashboard .life-dashboard .p4-pie-segment:is(:hover,:focus,.is-highlighted) { stroke-width: 45px; filter: none; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption { position: static; height: 210px; overflow-y: auto; align-content: start; padding: 8px 14px 12px; gap: 2px 12px; border-top: 2px solid var(--color-ink); scrollbar-width: thin; scrollbar-color: var(--color-ink) var(--color-signal); }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption > button { border-bottom: 1px solid color-mix(in srgb,var(--color-ink) 20%,transparent); transform: none; box-shadow: none; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption i { height: 12px; }
+.view-dashboard .life-dashboard .allocation-empty { grid-column: 1 / -1; text-align: center; padding: 24px 0; font-size: 12px; }
+.view-dashboard .life-dashboard .p4-pie-figure figcaption > button { min-height: 44px; }
+.view-dashboard .life-dashboard .p4-pie-figure:first-child figcaption { grid-template-columns: 1fr; }
+.view-dashboard .life-dashboard .faction-time-mode button { min-height: 44px; padding-inline: 9px; }
+.view-dashboard .life-dashboard .dashboard-left-rail { grid-template-columns: repeat(2,minmax(0,1fr)); grid-template-rows: auto; gap: 24px; height: auto; }
+.view-dashboard .life-dashboard .recovery-panel { display: grid; grid-template-columns: minmax(0,1fr); grid-template-rows: 88px 104px 170px minmax(44px,auto); height: auto; align-self: start; }
+.view-dashboard .life-dashboard .recovery-panel > header { grid-column: 1; }
+.view-dashboard .life-dashboard .recovery-score { grid-template-columns: 1fr 1fr; border: 0; border-bottom: 2px solid var(--color-ink); }
+.view-dashboard .life-dashboard .recovery-score article { min-height: 0; grid-template-rows: auto auto auto; gap: 8px; padding: 12px 18px; }
+.view-dashboard .life-dashboard .recovery-score strong { font-size: 1.8rem; }
+.view-dashboard .life-dashboard .recovery-score :is(span,small) { font-size: .6rem; }
+.view-dashboard .life-dashboard .sleep-rhythm-strip { height: 170px; min-height: 170px; justify-content: space-around; gap: 5px; padding: 30px 18px 14px; }
+.view-dashboard .life-dashboard .sleep-rhythm-strip i { min-width: 0; max-width: 30px; }
+.view-dashboard .life-dashboard .recovery-empty { position: absolute; inset: 0; display: grid; place-items: center; font-size: .7rem; }
+.view-dashboard .life-dashboard .recovery-panel > footer { grid-column: 1; min-height: 44px; padding: 8px 14px; border-top: 2px solid var(--color-ink); }
+.view-dashboard .life-dashboard .mission-load-chart { height: 274px; }
+.view-dashboard .life-dashboard .mission-load-chart > div { grid-template-columns: minmax(0,1fr); }
+.view-dashboard .life-dashboard .mission-load-chart > div > i { width: min(30px,70%); min-height: 0; }
+.view-dashboard .life-dashboard .mission-load-chart > div.is-empty > i { border: 0; box-shadow: none; overflow: visible; }
+.view-dashboard .life-dashboard .mission-load-chart > div.is-empty > i::after { content: ''; position: absolute; bottom: 0; left: 50%; width: 3px; height: 2px; transform: translateX(-50%); background: var(--color-ink); }
+.view-dashboard.theme-night .life-dashboard .mission-load-chart > div.is-empty > i::after { background: var(--dashboard-night-muted); }
+.view-dashboard .life-dashboard .mission-load-panel > header { min-height: 88px; flex-wrap: wrap; }
+.view-dashboard .life-dashboard .operation-load-mode button { min-height: 44px; }
+.view-dashboard .life-dashboard .mission-load-panel footer { min-height: 44px; flex-wrap: wrap; gap: 8px; }
+.view-dashboard.theme-night .life-dashboard .p4-pie-heading { color: var(--dashboard-night-text); background: var(--dashboard-night-raised); border-color: var(--dashboard-night-line); }
+.view-dashboard.theme-night .life-dashboard .p4-pie-base { stroke: var(--dashboard-night-line); }
+.view-dashboard.theme-night .life-dashboard .p4-pie-figure figcaption { border-color: var(--dashboard-night-line); }
+.view-dashboard .life-dashboard .dashboard-detail-section { min-width: 0; border: 4px solid var(--color-ink); background: var(--color-paper); box-shadow: 6px 7px 0 var(--color-ink); }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary { display: flex; align-items: center; gap: 18px; min-height: 70px; padding: 16px 20px; color: var(--color-paper); background: var(--color-ink); cursor: pointer; list-style: none; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary::-webkit-details-marker { display: none; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary span { font: italic 1000 1.5rem/1 var(--font-display); }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary small { color: var(--color-signal); font-size: .72rem; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary b { margin-left: auto; color: var(--color-signal); font-size: 26px; }
+.view-dashboard .life-dashboard .dashboard-detail-section > summary:focus-visible { outline: 3px solid var(--color-signal); outline-offset: -5px; }
+.view-dashboard .life-dashboard .dashboard-detail-section[open] > summary b { transform: rotate(45deg); }
+.view-dashboard .life-dashboard .time-rank-panel { transform: none; }
+.view-dashboard .life-dashboard .time-rank-panel > header { display: flex; flex-wrap: wrap; align-items: center; gap: 16px; padding: 16px; color: var(--color-paper); background: var(--color-ink); border-top: 2px solid var(--color-paper); }
+.view-dashboard .life-dashboard .time-rank-panel > header h3 { margin: 5px 0 0; font: 1000 1.4rem var(--font-display); }
+.view-dashboard .life-dashboard .goal-radar { margin: 8px 0; box-shadow: 6px 7px 0 var(--color-ink); }
+.view-dashboard .life-dashboard .goal-radar h2 span { display: inline-block; margin-left: 12px; padding: 4px 8px; color: var(--color-ink); background: var(--color-signal); font: 900 .72rem/1.4 var(--font-ui); vertical-align: middle; }
+.view-dashboard .life-dashboard .goal-radar article { padding: 18px; }
+.view-dashboard .life-dashboard .goal-radar h3 { font-size: 15px; }
+.view-dashboard .life-dashboard .campaign-shortcuts { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.view-dashboard.theme-night .life-dashboard .overview-stat { color: var(--dashboard-night-text); background: var(--dashboard-night-raised); }
+.view-dashboard.theme-night .life-dashboard .overview-stat::before { background: var(--dashboard-night-gold); }
+.view-dashboard.theme-night .life-dashboard .overview-stat:is(:hover,:focus-visible) { color: var(--dashboard-night-text); background: linear-gradient(147deg,#050604 0 70%,color-mix(in srgb,var(--stat-tone) 58%,#050604) 70.5% 100%); outline-color: var(--dashboard-night-text); }
+.view-dashboard.theme-night .life-dashboard .dashboard-detail-section { background: var(--dashboard-night-surface); }
+@media (max-width: 1120px) {
+  .view-dashboard .life-dashboard .campaign-header { grid-template-columns: 1fr 1fr; }
+  .view-dashboard .life-dashboard .period-selector { grid-column: 1 / -1; padding: 16px 24px; clip-path: none; }
+  .view-dashboard .life-dashboard .period-control { width: 100%; }
+  .view-dashboard .life-dashboard .campaign-overview-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+  .view-dashboard .life-dashboard .discipline-arena { grid-template-columns: 1fr; }
+  .view-dashboard .life-dashboard .dashboard-left-rail { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .view-dashboard .life-dashboard { gap: 20px; padding-right: 6px; }
+  .view-dashboard .life-dashboard .campaign-header { display: grid; grid-template-columns: 1fr; }
+  .view-dashboard .life-dashboard .campaign-title h2 { font-size: 3.2rem; }
+  .view-dashboard .life-dashboard .campaign-title { padding: 20px 18px 6px; }
+  .view-dashboard .life-dashboard .campaign-scale { padding: 14px; }
+  .view-dashboard .life-dashboard .period-selector { padding: 16px; }
+  .view-dashboard .life-dashboard .campaign-overview-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .view-dashboard .life-dashboard .overview-stat { padding: 14px 12px; min-height: 156px; }
+  .view-dashboard .life-dashboard .overview-stat > strong { font-size: 1.9rem; }
+  .view-dashboard .life-dashboard .overview-stat::before { display: none; }
+  .view-dashboard .life-dashboard .campaign-overview > header h3 { font-size: 1.5rem; }
+  .view-dashboard .life-dashboard .dashboard-section-heading { padding: 13px; margin-top: 6px; }
+  .view-dashboard .life-dashboard .dashboard-section-heading span { font-size: 1.1rem; }
+  .view-dashboard .life-dashboard .dashboard-section-heading p { display: none; }
+  .view-dashboard .life-dashboard .discipline-kpi { grid-template-columns: 1fr; grid-template-rows: auto; }
+  .view-dashboard .life-dashboard .discipline-kpi header { grid-column: 1; min-height: 80px; }
+  .view-dashboard .life-dashboard .allocation-pies { grid-template-columns: 1fr; }
+  .view-dashboard .life-dashboard .p4-pie-figure:first-child { border-right: 0; border-bottom: 4px solid var(--color-ink); }
+  .view-dashboard .life-dashboard .dashboard-detail-section > summary { flex-wrap: wrap; gap: 10px; padding: 15px; }
+  .view-dashboard .life-dashboard .dashboard-detail-section > summary span { font-size: 1.15rem; }
+  .view-dashboard .life-dashboard .campaign-shortcuts { grid-template-columns: 1fr 1fr; }
+  .view-dashboard .life-dashboard .goal-radar h2 span { margin: 8px 0 0; display: table; }
+}

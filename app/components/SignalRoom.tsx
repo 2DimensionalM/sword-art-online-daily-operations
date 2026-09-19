@@ -202,7 +202,11 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
 export function GoalRadar({ signals, today, onOpen }: { signals: Signals; today: string; onOpen: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const goals = signals.state.goals.filter((goal) => !goal.completedDate);
-  return <section className="goal-radar" aria-label="目标雷达"><header><div><small>KEEP YOUR FUTURE IN SIGHT</small><h2>目标雷达 <span>{String(goals.length).padStart(2, '0')}</span></h2></div><button onClick={onOpen}>前往心愿放送室 ↗</button></header>{signals.error ? <p role="status">目标暂时无法同步，请到放送室重试。</p> : !signals.ready ? <p>正在读取目标…</p> : !goals.length ? <p>{signals.state.goals.length ? '当前没有进行中的目标。已完成的坐标收在心愿放送室。' : '还没有设定远方坐标。为自己写下一个想抵达的目标吧。'}</p> : <div className="goal-radar-grid">{goals.slice(0, expanded ? undefined : 3).map((goal) => <article key={goal.id}><small>{goal.taskType}</small><h3>{goal.title}</h3><p>{goal.description}</p><footer><time dateTime={goal.date}>{goal.date.replaceAll('-', '.')}</time><strong>{deadline(goal.date, today)}</strong></footer></article>)}</div>}{goals.length > 3 && <button className="goal-radar-expand" onClick={() => setExpanded(!expanded)}>{expanded ? '收起目标 ↑' : `查看全部 ${goals.length} 个目标 ↓`}</button>}</section>;
+  return <section className="goal-radar" aria-label="目标雷达">
+    <header><div><small>GOAL RADAR / KEEP YOUR FUTURE IN SIGHT</small><h2>目标雷达<span>{signals.ready && !signals.error ? `${goals.length} 个进行中目标` : signals.error ? '信号中断' : '同步中'}</span></h2></div><button onClick={onOpen}>SIGNAL ROOM / 心愿放送室 ↗</button></header>
+    {signals.error ? <p role="status">目标暂时无法同步，请到放送室重试。</p> : !signals.ready ? <p>正在读取目标…</p> : !goals.length ? <p>{signals.state.goals.length ? '当前没有进行中的目标。已完成的坐标收在心愿放送室。' : '还没有设定远方坐标。为自己写下一个想抵达的目标吧。'}</p> : <div className="goal-radar-grid">{goals.slice(0, expanded ? undefined : 3).map((goal) => <article key={goal.id}><small>{goal.taskType}</small><h3>{goal.title}</h3><p>{goal.description}</p><footer><time dateTime={goal.date}>{goal.date.replaceAll('-', '.')}</time><strong>{deadline(goal.date, today)}</strong></footer></article>)}</div>}
+    {goals.length > 3 && <button className="goal-radar-expand" onClick={() => setExpanded(!expanded)}>{expanded ? '收起目标 ↑' : `查看全部 ${goals.length} 个目标 ↓`}</button>}
+  </section>;
 }
 
 export function SignalTicker({ signals }: { signals: Signals }) {

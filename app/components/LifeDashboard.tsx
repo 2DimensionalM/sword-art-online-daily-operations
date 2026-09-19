@@ -30,6 +30,7 @@ export type DashboardTask = {
 };
 
 type LifeDashboardProps = {
+  goalRadar: ReactNode;
   username: string;
   now: Date;
   tasks: DashboardTask[];
@@ -406,21 +407,35 @@ function buildLoadBuckets(period: CampaignPeriod, scale: DashboardCampaignScale,
   return buckets;
 }
 
-function PieChart({ title, subtitle, segments, headingControl, onSegmentSelect }: {
+function PieChart({ title, subtitle, segments, headingControl, autoScrollLegend = false, onSegmentSelect }: {
   title: string;
   subtitle: string;
   segments: { id: string; label: string; value: number; color: string }[];
   headingControl?: ReactNode;
+  autoScrollLegend?: boolean;
   onSegmentSelect: (segment: { id: string; label: string; value: number; color: string }) => void;
 }) {
-  const [hoveredSegment, setHoveredSegment] = useState<{ label: string; ratio: number; value: number } | null>(null);
+  const [hoveredSegment, setHoveredSegment] = useState<{ id: string; label: string; ratio: number; value: number } | null>(null);
+  const legendRef = useRef<HTMLElement>(null);
+  const legendItemRefs = useRef(new Map<string, HTMLButtonElement>());
   const total = segments.reduce((sum, segment) => sum + segment.value, 0);
   const visibleSegments = segments.filter((segment) => segment.value > 0);
+  const activateSegment = (segment: { id: string; label: string; ratio: number; value: number }, scrollLegend = false) => {
+    setHoveredSegment(segment);
+    if (!autoScrollLegend || !scrollLegend) return;
+    const legend = legendRef.current;
+    const item = legendItemRefs.current.get(segment.id);
+    if (!legend || !item) return;
+    const legendRect = legend.getBoundingClientRect();
+    const itemRect = item.getBoundingClientRect();
+    const itemTop = itemRect.top - legendRect.top + legend.scrollTop;
+    const nextTop = itemTop - (legend.clientHeight - itemRect.height) / 2;
+    legend.scrollTo({ top: Math.max(0, nextTop), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  };
   let cursor = 0;
   return <figure className="p4-pie-figure">
-    <div className="p4-pie-heading"><span>{subtitle}</span><div><strong>{title}</strong>{headingControl}</div></div>
+    <div className="p4-pie-heading"><div className="allocation-chart-title"><strong>{title}</strong><span>{subtitle}</span></div>{headingControl}</div>
     <div className="p4-pie-stage">
-      <span className="p4-pie-graffiti" aria-hidden="true">{'//// TRUTH! ✦'}</span>
       <div className="p4-pie-disc">
         <svg viewBox="0 0 240 240" role="img" aria-label={title}>
           <circle className="p4-pie-base" cx="120" cy="120" r={PIE_RADIUS} />
@@ -429,17 +444,17 @@ function PieChart({ title, subtitle, segments, headingControl, onSegmentSelect }
             const dash = Math.max(1, ratio * PIE_CIRCUMFERENCE - 3);
             const offset = -cursor * PIE_CIRCUMFERENCE;
             cursor += ratio;
-            const tooltip = { label: segment.label, ratio, value: segment.value };
-            return <circle key={segment.id} className={`p4-pie-segment ${hoveredSegment ? hoveredSegment.label === segment.label ? 'is-highlighted' : 'is-muted' : ''}`} cx="120" cy="120" r={PIE_RADIUS} strokeDasharray={`${dash} ${PIE_CIRCUMFERENCE - dash}`} strokeDashoffset={offset} style={{ '--segment-color': segment.color } as CSSProperties} transform="rotate(-90 120 120)" tabIndex={0} aria-label={`${segment.label}，${(ratio * 100).toFixed(1)}%，${formatDuration(segment.value)}，按回车查看明细`} onClick={() => onSegmentSelect(segment)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSegmentSelect(segment); } }} onMouseEnter={() => setHoveredSegment(tooltip)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => setHoveredSegment(tooltip)} onBlur={() => setHoveredSegment(null)} />;
+            const tooltip = { id: segment.id, label: segment.label, ratio, value: segment.value };
+            return <circle key={segment.id} className={`p4-pie-segment ${hoveredSegment ? hoveredSegment.id === segment.id ? 'is-highlighted' : 'is-muted' : ''}`} cx="120" cy="120" r={PIE_RADIUS} strokeDasharray={`${dash} ${PIE_CIRCUMFERENCE - dash}`} strokeDashoffset={offset} style={{ '--segment-color': segment.color } as CSSProperties} transform="rotate(-90 120 120)" tabIndex={0} aria-label={`${segment.label}，${(ratio * 100).toFixed(1)}%，${formatDuration(segment.value)}，按回车查看明细`} onClick={() => onSegmentSelect(segment)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSegmentSelect(segment); } }} onMouseEnter={() => activateSegment(tooltip, true)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => activateSegment(tooltip, true)} onBlur={() => setHoveredSegment(null)} />;
           })}
         </svg>
       </div>
       {hoveredSegment && <div className="p4-chart-tooltip pie-tooltip" role="status"><span>{hoveredSegment.label}</span><strong>{(hoveredSegment.ratio * 100).toFixed(1)}%</strong><small>{formatDuration(hoveredSegment.value)}</small></div>}
     </div>
-    <figcaption>{visibleSegments.slice(0, 8).map((segment) => {
-      const tooltip = { label: segment.label, ratio: total ? segment.value / total : 0, value: segment.value };
-      return <button type="button" key={segment.id} className={hoveredSegment?.label === segment.label ? 'is-active' : ''} onClick={() => onSegmentSelect(segment)} onMouseEnter={() => setHoveredSegment(tooltip)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => setHoveredSegment(tooltip)} onBlur={() => setHoveredSegment(null)}><i style={{ background: segment.color }} /><strong>{segment.label}</strong><small>{(tooltip.ratio * 100).toFixed(1)}%</small></button>;
-    })}</figcaption>
+    <figcaption ref={legendRef}>{visibleSegments.map((segment) => {
+      const tooltip = { id: segment.id, label: segment.label, ratio: total ? segment.value / total : 0, value: segment.value };
+      return <button ref={(node) => { if (node) legendItemRefs.current.set(segment.id, node); else legendItemRefs.current.delete(segment.id); }} type="button" key={segment.id} className={hoveredSegment?.id === segment.id ? 'is-active' : ''} onClick={() => onSegmentSelect(segment)} onMouseEnter={() => activateSegment(tooltip)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => activateSegment(tooltip)} onBlur={() => setHoveredSegment(null)}><i style={{ background: segment.color }} /><strong>{segment.label}</strong><small>{(tooltip.ratio * 100).toFixed(1)}%</small></button>;
+    })}{!visibleSegments.length && <p className="allocation-empty">本周期尚无行动记录</p>}</figcaption>
   </figure>;
 }
 
@@ -468,7 +483,7 @@ function MetricTrend({ title, values, tone, onPointSelect }: { title: string; va
   </div>;
 }
 
-export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEvents, taskDeletionEvents, campaignScale: scale, selectedPeriodId, onCampaignWindowChange, onNavigate, onOpenCalendarDay, onOpenCancellationLog }: LifeDashboardProps) {
+export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, deadlineEvents, taskDeletionEvents, campaignScale: scale, selectedPeriodId, onCampaignWindowChange, onNavigate, onOpenCalendarDay, onOpenCancellationLog }: LifeDashboardProps) {
   const [typeRankMode, setTypeRankMode] = useState<TypeRankMode>('total');
   const [loadMode, setLoadMode] = useState<LoadMode>('factions');
   const [factionTimeMode, setFactionTimeMode] = useState<FactionTimeMode>(() => {
@@ -876,7 +891,7 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
 
   return <section className="life-dashboard" aria-label="长期生活战绩 Dashboard">
     <header className="campaign-header">
-      <div className="campaign-title"><span>00 / LIFE PERFORMANCE ARCHIVE</span><h2>CAMPAIGN<br /><em>RECORD</em></h2><p><strong>{username}</strong><span aria-hidden="true">·</span><span className="campaign-brand-status">Sword Art Online <i aria-label="社交链路在线"><span className="campaign-online-mark" aria-hidden="true"><b /><b /><b /><em /></span><span className="campaign-online-copy" aria-hidden="true"><small>SOCIAL LINK</small><b>ONLINE</b></span><u aria-hidden="true">{'///'}</u></i></span></p></div>
+      <div className="campaign-title"><span>00 / LIFE PERFORMANCE ARCHIVE</span><h2>CAMPAIGN<br /><em>RECORD</em></h2><p><strong>{username}</strong><span>· 战役记录 / PLAYER STATUS</span></p></div>
       <div className="campaign-scale" role="group" aria-label="选择战役时间维度">{(Object.entries(SCALE_META) as [DashboardCampaignScale, typeof SCALE_META[DashboardCampaignScale]][]).map(([key, meta]) => <button type="button" key={key} className={`campaign-scale-${key}`} aria-pressed={scale === key} onClick={() => selectScale(key)}><strong>{meta.title}</strong><span>{meta.subtitle}</span></button>)}</div>
       <div className="period-selector" ref={periodSelectorRef}>
         <span>SELECT CAMPAIGN / 选择战役</span>
@@ -888,7 +903,7 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
     <section className="campaign-overview" aria-labelledby="campaign-overview-title">
       <header>
         <div><span>FIELD SNAPSHOT / 战役总览</span><h3 id="campaign-overview-title">CAMPAIGN VITALS</h3></div>
-        <p>{period.compactLabel}<strong>08 READOUTS</strong></p>
+        <p>{period.label}<strong>08 READOUTS · SELECT TO SCAN</strong></p>
       </header>
       <div className="campaign-overview-grid">
         {overviewStats.map((stat, index) => <article key={stat.id} className={`overview-stat overview-${stat.tone}`} role="button" tabIndex={0} data-index={String(index + 1).padStart(2, '0')} aria-label={`查看${stat.label}日历`} onClick={() => setOverviewDrilldown(stat.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); setOverviewDrilldown(stat.id); } }}>
@@ -900,9 +915,10 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
       </div>
     </section>
 
-    <section className="discipline-arena">
+    <div className="dashboard-section-heading"><div><span>DISCIPLINE CHECK</span><h3>执行战绩</h3></div><p>DEADLINE / VERDICT / REVISION</p></div>
+    <section className="discipline-arena" aria-label="执行质量">
       <article className="discipline-kpi in-time-kpi">
-        <header><span>01 / FINAL DEADLINE</span><strong>IN-TIME RATE</strong><div className="in-time-header-tools"><div className={`grace-filter${graceMenuOpen ? ' is-open' : ''}`} ref={graceFilterRef}><button type="button" className="grace-filter-trigger" aria-haspopup="menu" aria-expanded={graceMenuOpen} onClick={() => setGraceMenuOpen((open) => !open)}><span>GRACE</span><strong>{graceLabel}</strong><i>⌄</i></button>{graceMenuOpen && <div className="grace-filter-menu" role="menu" aria-label="准时完成宽限规则"><span>DEADLINE BUFFER</span>{GRACE_OPTIONS.map((option, index) => <button key={option.value} type="button" role="menuitemradio" aria-checked={graceMinutes === option.value} className={graceMinutes === option.value ? 'active' : ''} onClick={() => { setGraceMinutes(option.value); setGraceMenuOpen(false); }}><i>{String(index + 1).padStart(2, '0')}</i><strong>{option.detail}</strong><b>{graceMinutes === option.value ? '◆' : '◇'}</b></button>)}</div>}</div><small>准时完成率</small></div></header>
+        <header><span>01 / FINAL DEADLINE</span><strong>IN-TIME RATE</strong><small>准时完成率</small><div className="in-time-header-tools"><div className={`grace-filter${graceMenuOpen ? ' is-open' : ''}`} ref={graceFilterRef}><button type="button" className="grace-filter-trigger" aria-haspopup="menu" aria-expanded={graceMenuOpen} onClick={() => setGraceMenuOpen((open) => !open)}><span>GRACE</span><strong>{graceLabel}</strong><i>⌄</i></button>{graceMenuOpen && <div className="grace-filter-menu" role="menu" aria-label="准时完成宽限规则"><span>DEADLINE BUFFER</span>{GRACE_OPTIONS.map((option, index) => <button key={option.value} type="button" role="menuitemradio" aria-checked={graceMinutes === option.value} className={graceMinutes === option.value ? 'active' : ''} onClick={() => { setGraceMinutes(option.value); setGraceMenuOpen(false); }}><i>{String(index + 1).padStart(2, '0')}</i><strong>{option.detail}</strong><b>{graceMinutes === option.value ? '◆' : '◇'}</b></button>)}</div>}</div></div></header>
         <div className="kpi-snapshot is-actionable" role="button" tabIndex={0} aria-label="查看本周期准时完成率明细" onClick={() => openInTimeDrilldown(period)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openInTimeDrilldown(period); } }}><strong>{metrics.inTimeRate === null ? '--' : metrics.inTimeRate.toFixed(1)}<i>{metrics.inTimeRate === null ? '' : '%'}</i></strong><p>{metrics.inTimeCount} IN TIME / {metrics.inTimeSample} DEADLINE CLEARS</p><small className="drilldown-callout">OPEN VERDICT ▶</small></div>
         <MetricTrend title={`IN-TIME · ${rollingWindowLabel}`} tone="yellow" values={trendMetrics.map((item) => ({ label: item.period.compactLabel, value: item.metrics.inTimeRate, period: item.period }))} onPointSelect={openInTimeDrilldown} />
       </article>
@@ -913,7 +929,16 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
       </article>
     </section>
 
+    <div className="dashboard-section-heading"><div><span>TACTICAL ANALYSIS</span><h3>行动解析</h3></div><p>FACTIONS / LOAD / RECOVERY</p></div>
     <div className="dashboard-story-grid">
+      <section className="allocation-panel">
+        <header><div><span>05 / TIME FACTIONS</span><h3>ALLOCATION MAP</h3></div></header>
+        <div className="allocation-pies">
+          <PieChart title="FACTION SHARE" subtitle="4 COLOR FACTIONS" segments={colorSegments} headingControl={<div className="faction-time-mode" role="group" aria-label="四色阵营耗时计算方式"><button type="button" title="同色重叠时间只计算一次" aria-pressed={factionTimeMode === 'merged'} onClick={() => setFactionTimeMode('merged')}>MERGED</button><button type="button" title="每个任务耗时分别累计" aria-pressed={factionTimeMode === 'stacked'} onClick={() => setFactionTimeMode('stacked')}>STACKED</button></div>} onSegmentSelect={(segment) => openAllocationDrilldown('tone', segment.id, factionTimeMode)} />
+          <PieChart title="TYPE SHARE" subtitle="ALL TASK TYPES" segments={typeSegments} autoScrollLegend onSegmentSelect={(segment) => openAllocationDrilldown('type', segment.id)} />
+        </div>
+      </section>
+
       <div className="dashboard-left-rail">
       <section className="mission-load-panel">
         <header><div><span>03 / MISSION LEDGER</span><h3>OPERATION LOAD</h3></div><div className="operation-load-mode" role="group" aria-label="选择任务负载分类方式"><button type="button" aria-pressed={loadMode === 'factions'} onClick={() => setLoadMode('factions')}>FACTIONS</button><button type="button" aria-pressed={loadMode === 'priority'} onClick={() => setLoadMode('priority')}>PRIORITY</button></div></header>
@@ -924,7 +949,7 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
               ? TONES.map((tone) => ({ key: tone, label: TONE_META[tone].signal.split(' / ')[0], count: bucket.tones[tone], tone: `tone-${tone}` }))
               : PRIORITIES.map((priority) => ({ key: priority, label: PRIORITY_META[priority].label, count: bucket.priorities[priority], tone: PRIORITY_META[priority].tone }));
             const detail = groups.map((group) => `${group.label} ${group.count}`).join(' · ');
-            return <div key={bucket.key} className="is-actionable" role="button" tabIndex={0} aria-label={`${bucket.label}，共 ${bucket.total} 个任务，查看明细`} data-tooltip={`${bucket.label}｜TOTAL ${bucket.total}｜${detail}`} onClick={() => openLoadDrilldown(bucket)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openLoadDrilldown(bucket); } }}><span>{bucket.total || ''}</span><i style={{ height: `${Math.max(bucket.total ? 9 : 2, bucket.total / maxLoad * 100)}%` }}>{groups.map((group) => <b key={group.key} className={group.tone} style={{ height: `${bucket.total ? group.count / bucket.total * 100 : 0}%` }} />)}</i><small>{showLabel ? bucket.label : '·'}</small></div>;
+            return <div key={bucket.key} className={`is-actionable${bucket.total ? '' : ' is-empty'}`} role="button" tabIndex={0} aria-label={`${bucket.label}，共 ${bucket.total} 个任务，查看明细`} data-tooltip={`${bucket.label}｜TOTAL ${bucket.total}｜${detail}`} onClick={() => openLoadDrilldown(bucket)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openLoadDrilldown(bucket); } }}><span>{bucket.total || ''}</span><i style={{ height: `${bucket.total / maxLoad * 100}%` }}>{groups.map((group) => <b key={group.key} className={group.tone} style={{ height: `${bucket.total ? group.count / bucket.total * 100 : 0}%` }} />)}</i><small>{showLabel ? bucket.label : '·'}</small></div>;
           })}
         </div>
         <footer>{loadMode === 'factions' ? TONES.map((tone) => <span key={tone} className={`tone-${tone}`}><i />{TONE_META[tone].signal.split(' / ')[0]}</span>) : PRIORITIES.map((priority) => <span key={priority} className={PRIORITY_META[priority].tone}><i />{PRIORITY_META[priority].label}</span>)}<strong>{scale === 'quarter' ? '1 WEEK / BAR' : '1 DAY / BAR'}</strong></footer>
@@ -934,6 +959,7 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
         <header><div><span>04 / REST ARCHIVE</span><h3>RECOVERY RHYTHM</h3></div></header>
         <div className="recovery-score"><article><span>SLEEP AVG</span><strong>{metrics.sleepAverage === null ? '--' : formatDuration(metrics.sleepAverage)}</strong><small>{metrics.sleepCount} NIGHT RECORDS</small></article><article><span>ACTIVE DAYS</span><strong>{metrics.activeDays}<i>/{periodDays}</i></strong><small>{period.label}</small></article></div>
         <div className="sleep-rhythm-strip" ref={sleepRhythmRef}>
+          {!sleepRhythm.length && <span className="recovery-empty">NO REST RECORDS / 本周期暂无睡眠记录</span>}
           {sleepRhythm.map(({ record, minutes, sma7 }) => <i className="sleep-rhythm-bar" key={record.id} style={{ height: `${Math.min(100, minutes / (10 * 60) * 100)}%` }} data-tooltip={`${dateKey(new Date(record.wakeAt))}｜睡眠 ${formatDuration(minutes)}｜7D SMA ${formatDuration(sma7)}`} />)}
           {activeSleepSmaGeometry && <><svg className="sleep-sma-overlay" style={{ left: activeSleepSmaGeometry.left, top: activeSleepSmaGeometry.top, width: activeSleepSmaGeometry.width, height: activeSleepSmaGeometry.height }} viewBox={`0 0 ${activeSleepSmaGeometry.width} ${activeSleepSmaGeometry.height}`} preserveAspectRatio="none" role="img" aria-label="睡眠时长 7 天简单移动平均">{activeSleepSmaGeometry.points.length > 1 && <><polyline className="sleep-sma-keyline" points={sleepSmaPointList} /><polyline className="sleep-sma-signal" points={sleepSmaPointList} /></>}{activeSleepSmaGeometry.points.map((point) => <circle key={point.id} cx={point.x} cy={point.y} r="3" />)}</svg><span className="sleep-sma-label" aria-hidden="true">7D SMA</span></>}
         </div>
@@ -941,14 +967,8 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
       </section>
       </div>
 
-      <section className="allocation-panel">
-        <header><div><span>05 / TIME FACTIONS</span><h3>ALLOCATION MAP</h3></div></header>
-        <div className="allocation-pies">
-          <PieChart title="FACTION SHARE" subtitle="4 COLOR FACTIONS" segments={colorSegments} headingControl={<div className="faction-time-mode" role="group" aria-label="四色阵营耗时计算方式"><button type="button" title="同色重叠时间只计算一次" aria-pressed={factionTimeMode === 'merged'} onClick={() => setFactionTimeMode('merged')}>MERGED</button><button type="button" title="每个任务耗时分别累计" aria-pressed={factionTimeMode === 'stacked'} onClick={() => setFactionTimeMode('stacked')}>STACKED</button></div>} onSegmentSelect={(segment) => openAllocationDrilldown('tone', segment.id, factionTimeMode)} />
-          <PieChart title="TYPE SHARE" subtitle="ALL TASK TYPES" segments={typeSegments} onSegmentSelect={(segment) => openAllocationDrilldown('type', segment.id)} />
-        </div>
-      </section>
-
+      <details className="dashboard-detail-section">
+      <summary><span>TIME INTELLIGENCE</span><small>展开情报 · 阵营耗时 / 类型排名</small><b aria-hidden="true">＋</b></summary>
       <section className="time-rank-panel">
         <header><div><span>06 / PERFORMANCE SCAN</span><h3>TIME INTELLIGENCE</h3></div><div className="type-rank-mode" role="group" aria-label="选择任务类型排名依据"><button type="button" aria-pressed={typeRankMode === 'total'} onClick={() => setTypeRankMode('total')}>TOTAL 排名</button><button type="button" aria-pressed={typeRankMode === 'average'} onClick={() => setTypeRankMode('average')}>AVG 排名</button></div></header>
         <div className="color-time-roster">{metrics.tones.map((tone) => <article key={tone.tone} className={`tone-${tone.tone} is-actionable`} role="button" tabIndex={0} aria-label={`${TONE_META[tone.tone].label}耗时明细`} onClick={() => openAllocationDrilldown('tone', tone.tone, 'stacked', true)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openAllocationDrilldown('tone', tone.tone, 'stacked', true); } }}><i /><div><span>{TONE_META[tone.tone].signal}</span><strong>{TONE_META[tone.tone].label}</strong></div><dl><div><dt>TOTAL</dt><dd>{formatDuration(tone.minutes)}</dd></div><div><dt>AVG / TASK</dt><dd>{formatDuration(tone.average)}</dd></div><div><dt>TASKS</dt><dd>{tone.count}</dd></div></dl></article>)}</div>
@@ -960,13 +980,15 @@ export function LifeDashboard({ username, now, tasks, sleepRecords, deadlineEven
         })}{!rankedTypes.length && <div className="dashboard-empty">NO TIME DATA / 本周期尚无可计算耗时</div>}</div>
       </section>
 
+      </details>
+    </div>
+    {goalRadar}
       <nav className="campaign-shortcuts" aria-label="功能页快捷入口">
         <button type="button" onClick={() => onNavigate('board')}><span>01</span><div><strong>DAILY OPS</strong><small>回到今天，立即行动</small></div><i>▶</i></button>
         <button type="button" onClick={() => onNavigate('table')}><span>02</span><div><strong>MISSION ARCHIVE</strong><small>检查完整任务档案</small></div><i>▦</i></button>
         <button type="button" onClick={() => onNavigate('sleep')}><span>03</span><div><strong>NIGHT LOG</strong><small>查看完整睡眠节奏</small></div><i>☾</i></button>
         <button type="button" onClick={() => onNavigate('calendar')}><span>04</span><div><strong>CALENDAR</strong><small>进入月度行动地图</small></div><i>◆</i></button>
       </nav>
-    </div>
     {overviewCalendarData && <DashboardCalendarDrilldown data={overviewCalendarData} onClose={() => setOverviewDrilldown(null)} onDaySelect={(dayKey) => { setOverviewDrilldown(null); if (overviewDrilldown === 'cancelled') onOpenCancellationLog(); else onOpenCalendarDay(dayKey); }} />}
     {drilldown && <DashboardDrilldown data={drilldown} onClose={() => setDrilldown(null)} />}
   </section>;

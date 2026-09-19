@@ -126,6 +126,12 @@ Use texture on large empty surfaces or decorative pseudo-elements—not behind d
 
 ## 5. Layout and composition
 
+### LIFE COMMAND composition
+
+The homepage shares the same P4G broadcast/game identity as DAILY OPS, MISSION ARCHIVE, and NIGHT LOG. It has no visual-language exception. `app/homepage.css` may arrange content inside `.life-dashboard`, but must not override the shared page background, brand, hero, date, menu, or new-mission controls. Use the canonical yellow/ink/paper tokens, hard outlines, spatial shadows, tactical English labels, and concise Chinese mission copy. Reduce visual competition through alignment and hierarchy without removing the product identity.
+
+Preserve all eight metrics, calculations, and drilldown dialog appearances. Goal totals include an explicit unit. Secondary colors remain semantic chart signals. Verify the shared top frame against another page in both themes whenever the homepage composition changes.
+
 ### Page frame
 
 - Keep the task surface above decorative effects with a clear z-index layer.

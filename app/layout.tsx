@@ -3,6 +3,7 @@ import './globals.css';
 import './dashboard.css';
 import './brand.css';
 import './signal-room.css';
+import './homepage.css';
 
 export const metadata: Metadata = {
   title: 'Sword Art Online',

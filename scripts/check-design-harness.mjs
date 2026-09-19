@@ -39,6 +39,15 @@ const brandCss = read('app/brand.css');
 const brandComponent = read('app/components/BrandLockup.tsx');
 const globalsCss = read('app/globals.css');
 const styleGuide = read('docs/STYLE_GUIDE.md');
+const homepageCss = read('app/homepage.css');
+
+// LIFE COMMAND must use the same identity and shell as the other game pages.
+for (const selector of ['.hero', '.day-card', '.menu-trigger', '.mission-summary', '.add-task', '.app-frame', '.persona-fx', '.tv-noise', '.brand-', '.logo-']) {
+  if (homepageCss.includes(selector)) failures.push(`app/homepage.css must not override shared shell selector ${selector}`);
+}
+if (/\.view-dashboard(?:\.theme-(?:day|night))?\s*(?:::before|::after)?\s*\{/.test(homepageCss)) {
+  failures.push('app/homepage.css must scope its composition inside .life-dashboard, never replace the shared page background');
+}
 
 for (const token of ['--logo-depth-x', '--logo-depth-y', '--logo-plane', 'perspective(', '.brand-plane', '.logo-face::before', '.logo-face::after', 'paint-order:stroke fill']) {
   requireText(brandCss, token, 'app/brand.css');
