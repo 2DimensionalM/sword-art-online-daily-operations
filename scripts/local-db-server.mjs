@@ -120,13 +120,31 @@ db.exec(`
 db.exec(`
   CREATE TABLE IF NOT EXISTS goals (
     id TEXT PRIMARY KEY, task_type TEXT NOT NULL, title TEXT NOT NULL,
-    description TEXT NOT NULL, due_date TEXT NOT NULL
+    description TEXT NOT NULL, due_date TEXT NOT NULL,
+    completed_date TEXT NOT NULL DEFAULT ''
   );
   CREATE TABLE IF NOT EXISTS personal_messages (
     id TEXT PRIMARY KEY, mood TEXT NOT NULL, title TEXT NOT NULL,
     description TEXT NOT NULL, message_date TEXT NOT NULL
   );
 `);
+const goalColumns = db.prepare('PRAGMA table_info(goals)').all();
+if (!goalColumns.some((column) => column.name === 'completed_date')) {
+  const legacyGoals = db.prepare('SELECT id, task_type, title, description, due_date FROM goals ORDER BY rowid').all();
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    db.prepare('INSERT INTO migration_backups (source, payload_json, imported_at) VALUES (?, ?, ?)').run(
+      'schema-goals-completed-date-v1',
+      JSON.stringify({ goals: legacyGoals }),
+      new Date().toISOString(),
+    );
+    db.exec("ALTER TABLE goals ADD COLUMN completed_date TEXT NOT NULL DEFAULT ''");
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
 db.exec('PRAGMA optimize');
 
 const readMeta = db.prepare('SELECT value FROM app_meta WHERE key = ?');
@@ -422,9 +440,14 @@ function createSleepRecord(payload) {
 function getSignals() {
   return {
     revision: Number(getMeta('signals_revision', '0')),
-    goals: db.prepare('SELECT id, task_type AS taskType, title, description, due_date AS date FROM goals ORDER BY due_date, rowid').all(),
+    goals: db.prepare("SELECT id, task_type AS taskType, title, description, due_date AS date, completed_date AS completedDate FROM goals ORDER BY CASE WHEN completed_date = '' THEN 0 ELSE 1 END, due_date, rowid").all(),
     messages: db.prepare('SELECT id, mood, title, description, message_date AS date FROM personal_messages ORDER BY message_date DESC, rowid DESC').all(),
   };
+}
+
+function isLocalDate(value, optional = false) {
+  if (optional && value === '') return true;
+  return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(value) && Number.isFinite(Date.parse(value)) && new Date(value).toISOString().slice(0, 10) === value;
 }
 
 function assertSignals(payload) {
@@ -438,7 +461,8 @@ function assertSignals(payload) {
       for (const [key, max] of [['title', 200], ['description', 10000], [field, 100]]) {
         if (typeof record[key] !== 'string' || record[key].length > max || (key !== 'description' && !record[key].trim())) throw new Error('标题、类型或心情不能为空，且不能超出长度限制');
       }
-      if (typeof record.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(record.date) || !Number.isFinite(Date.parse(record.date)) || new Date(record.date).toISOString().slice(0, 10) !== record.date) throw new Error('请选择有效日期');
+      if (!isLocalDate(record.date)) throw new Error('请选择有效日期');
+      if (field === 'taskType' && !isLocalDate(record.completedDate, true)) throw new Error('请选择有效完成日期');
     }
   }
 }
@@ -453,9 +477,9 @@ function saveSignals(payload) {
       return { conflict: true, state: current };
     }
     db.exec('DELETE FROM goals; DELETE FROM personal_messages;');
-    const goal = db.prepare('INSERT INTO goals VALUES (?, ?, ?, ?, ?)');
-    const message = db.prepare('INSERT INTO personal_messages VALUES (?, ?, ?, ?, ?)');
-    for (const item of payload.goals) goal.run(item.id, item.taskType.trim(), item.title.trim(), item.description, item.date);
+    const goal = db.prepare('INSERT INTO goals (id, task_type, title, description, due_date, completed_date) VALUES (?, ?, ?, ?, ?, ?)');
+    const message = db.prepare('INSERT INTO personal_messages (id, mood, title, description, message_date) VALUES (?, ?, ?, ?, ?)');
+    for (const item of payload.goals) goal.run(item.id, item.taskType.trim(), item.title.trim(), item.description, item.date, item.completedDate);
     for (const item of payload.messages) message.run(item.id, item.mood.trim(), item.title.trim(), item.description, item.date);
     writeMeta.run('signals_revision', String(current.revision + 1));
     db.exec('COMMIT');
