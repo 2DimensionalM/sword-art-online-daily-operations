@@ -165,7 +165,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     restored: { mark: '↺', title: '目标已恢复', detail: '重新回到首页与公告频道', signal: 'ON AIR' },
   }[notice] : null;
   return <section className="signal-room" aria-label="心愿放送室">
-    <header className="signal-masthead"><div><span>CH.05 / YOUR PERSONAL FREQUENCY</span><h2>给未来的自己<br /><em>留一个信号。</em></h2><p>把想抵达的远方、想记住的话，调到同一个频道。</p></div><div className="signal-station" aria-hidden="true"><b>ON<br />AIR</b><span>GOALS × WORDS</span><i>● ━━━ ●</i></div></header>
+    <header className="signal-masthead"><div><span>05 / YOUR PERSONAL FREQUENCY</span><h2>给未来的自己<br /><em>留一个信号。</em></h2><p>把想抵达的远方、想记住的话，调到同一个频道。</p></div><div className="signal-station" aria-hidden="true"><b>ON<br />AIR</b><span>GOALS × WORDS</span><i>● ━━━ ●</i></div></header>
     <div className="signal-toolbar"><div className="signal-switch" aria-label="内容分类">{(['goal', 'message'] as const).map((value) => <button key={value} aria-pressed={kind === value} onClick={() => { if (value !== kind) askLeave(() => { setKind(value); setPage(0); setQuery(''); setDraft(null); setDirty(false); setDeleteId(''); }); }}><b>{value === 'goal' ? '01 / 目标' : '02 / 寄语'}</b><span>{value === 'goal' ? state.goals.length : state.messages.length}</span></button>)}</div><div className="signal-toolbar-actions">{noticeCopy && <div className={`signal-notice is-${notice}`} role="status">
       <span className="signal-notice-mark" aria-hidden="true">{noticeCopy.mark}</span>
       <span className="signal-notice-copy"><b>{noticeCopy.title}</b><small>{noticeCopy.detail}</small></span>
