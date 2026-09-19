@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { createPortal } from 'react-dom';
 import { DiscardSignalDialog } from './DiscardSignalDialog';
 import { SignalDatePicker } from './SignalDatePicker';
 import { loadSignals, saveSignals, type Goal, type PersonalMessage, type SignalState } from '../lib/signal-store';
@@ -49,6 +50,12 @@ export function useSignals() {
 
 type Signals = ReturnType<typeof useSignals>;
 type Draft = { kind: 'goal' | 'message'; id: string; title: string; description: string; date: string; completedDate: string; tag: string; revision: number };
+const completionShards = [
+  ['-42vw', '-28vh', '-148deg', '#fff200'], ['-34vw', '24vh', '98deg', '#f7f1d5'], ['-25vw', '-38vh', '210deg', '#ff4b36'],
+  ['-17vw', '34vh', '-72deg', '#2d67ff'], ['-8vw', '-43vh', '132deg', '#10110e'], ['8vw', '40vh', '-115deg', '#45b861'],
+  ['18vw', '-36vh', '64deg', '#fff200'], ['26vw', '30vh', '155deg', '#f7f1d5'], ['35vw', '-24vh', '-205deg', '#8e4bc7'],
+  ['43vw', '18vh', '118deg', '#ff4b36'], ['48vw', '-4vh', '-42deg', '#fff200'], ['-48vw', '5vh', '184deg', '#f7f1d5'],
+] as const;
 function todayKey() { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`; }
 function deadline(date: string, today: string) {
   const days = Math.round((Date.parse(date) - Date.parse(today)) / 86400000);
@@ -61,12 +68,14 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
   const [showCompleted, setShowCompleted] = useState(true);
+  const [completionFx, setCompletionFx] = useState<Goal | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
   const [deleteId, setDeleteId] = useState('');
   const [notice, setNotice] = useState<'saved' | 'deleted' | 'completed' | 'restored' | ''>('');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const editor = useRef<HTMLFormElement>(null);
+  const completionTimers = useRef<number[]>([]);
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   useEffect(() => {
     if (!dirty) return;
@@ -79,6 +88,18 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     const timer = window.setTimeout(() => setNotice(''), 5000);
     return () => window.clearTimeout(timer);
   }, [notice]);
+  useEffect(() => () => completionTimers.current.forEach((timer) => window.clearTimeout(timer)), []);
+  useEffect(() => {
+    if (!completionFx) return;
+    const previousRootOverflow = document.documentElement.style.overflow;
+    const previousOverflow = document.body.style.overflow;
+    document.documentElement.style.overflow = 'hidden';
+    document.body.style.overflow = 'hidden';
+    return () => {
+      document.documentElement.style.overflow = previousRootOverflow;
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [completionFx]);
   const completedCount = state.goals.filter((goal) => Boolean(goal.completedDate)).length;
   const records: Array<Goal | PersonalMessage> = kind === 'goal'
     ? [...state.goals].sort((left, right) => Number(Boolean(left.completedDate)) - Number(Boolean(right.completedDate)) || left.date.localeCompare(right.date))
@@ -116,7 +137,26 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     if (await commit(next)) {
       setNotice(completed ? 'completed' : 'restored');
       setPage(0);
+      return true;
     }
+    return false;
+  };
+  const playGoalCompletion = (goal: Goal) => {
+    if (busy || completionFx) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      void setGoalCompletion(goal, true);
+      return;
+    }
+    completionTimers.current.forEach((timer) => window.clearTimeout(timer));
+    setCompletionFx(goal);
+    completionTimers.current = [
+      window.setTimeout(() => {
+        void setGoalCompletion(goal, true).then((saved) => {
+          if (!saved) setCompletionFx(null);
+        });
+      }, 720),
+      window.setTimeout(() => setCompletionFx(null), 3300),
+    ];
   };
   const noticeCopy = notice ? {
     saved: { mark: '✓', title: '放送完成', detail: '首页 / 底部公告已同步', signal: 'SYNCED' },
@@ -139,7 +179,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
         const completedGoal = 'completedDate' in item && Boolean(item.completedDate);
         return <article key={item.id} className={`signal-card ${completedGoal ? 'is-completed' : ''}`}>
           {completedGoal && <span className="signal-goal-pin" aria-hidden="true" />}
-          <header><span>{'taskType' in item ? item.taskType : item.mood}</span><small>NO.{String(currentPage * 6 + index + 1).padStart(2, '0')}</small></header><h4>{item.title}</h4><p>{item.description || '还没有补充描述。'}</p><footer><time dateTime={item.date}>截止 {item.date.replaceAll('-', '.')}</time>{'completedDate' in item && (item.completedDate ? <span className="signal-completed-date">✓ 完成 {item.completedDate.replaceAll('-', '.')}</span> : <span>{deadline(item.date, todayKey())}</span>)}</footer><div className="signal-card-actions"><button disabled={busy} onClick={() => open(item)}>编辑 ↗</button>{'completedDate' in item && <button className="signal-completion-action" disabled={busy} onClick={() => askLeave(() => { setDraft(null); setDirty(false); void setGoalCompletion(item, !item.completedDate); })}>{item.completedDate ? '↺ 恢复目标' : '✓ 完成'}</button>}<button disabled={busy} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); setDeleteId(item.id); }); }}>删除</button></div>{deleteId === item.id && <div className="signal-delete" role="group" aria-label="确认删除"><p>删除「{item.title}」？首页和公告也会移除。</p><button disabled={busy} onClick={() => void remove(item.id)}>确认删除</button><button disabled={busy} onClick={() => setDeleteId('')}>保留</button></div>}
+          <header><span>{'taskType' in item ? item.taskType : item.mood}</span><small>NO.{String(currentPage * 6 + index + 1).padStart(2, '0')}</small></header><h4>{item.title}</h4><p>{item.description || '还没有补充描述。'}</p><footer><time dateTime={item.date}>截止 {item.date.replaceAll('-', '.')}</time>{'completedDate' in item && (item.completedDate ? <span className="signal-completed-date">✓ 完成 {item.completedDate.replaceAll('-', '.')}</span> : <span>{deadline(item.date, todayKey())}</span>)}</footer><div className="signal-card-actions"><button disabled={busy || Boolean(completionFx)} onClick={() => open(item)}>编辑 ↗</button>{'completedDate' in item && <button className="signal-completion-action" disabled={busy || Boolean(completionFx)} onClick={() => askLeave(() => { setDraft(null); setDirty(false); if (item.completedDate) void setGoalCompletion(item, false); else playGoalCompletion(item); })}>{item.completedDate ? '↺ 恢复目标' : '✓ 完成'}</button>}<button disabled={busy || Boolean(completionFx)} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); setDeleteId(item.id); }); }}>删除</button></div>{deleteId === item.id && <div className="signal-delete" role="group" aria-label="确认删除"><p>删除「{item.title}」？首页和公告也会移除。</p><button disabled={busy} onClick={() => void remove(item.id)}>确认删除</button><button disabled={busy} onClick={() => setDeleteId('')}>保留</button></div>}
         </article>;
       })}</div>}
       {filtered.length > 6 && <nav className="signal-pagination" aria-label="内容分页"><button disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>← 上一页</button><span>{currentPage + 1} / {maxPage + 1}</span><button disabled={currentPage === maxPage} onClick={() => setPage(currentPage + 1)}>下一页 →</button></nav>}
@@ -149,6 +189,14 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
       <footer><button type="button" disabled={busy} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); }); }}>取消</button><button className="signal-primary" disabled={busy || !draft.title.trim() || !draft.tag.trim() || !draft.date || draft.revision !== state.revision}>{busy ? '正在保存…' : '保存并放送 →'}</button></footer><small>保存后，将同步到首页与底部公告。</small></form>}
     </div>
     {pendingAction && <DiscardSignalDialog onKeep={() => setPendingAction(null)} onDiscard={() => { pendingAction(); setPendingAction(null); }} />}
+    {completionFx && typeof document !== 'undefined' && createPortal(<div className="signal-completion-fx" role="status" aria-live="assertive" aria-label={`${completionFx.title} 已完成`}>
+      <div className="signal-completion-speed" aria-hidden="true"><i /><i /><i /><i /></div>
+      <div className="signal-completion-reticle" aria-hidden="true"><i /><b>LOCK</b></div>
+      <div className="signal-completion-shot" aria-hidden="true" />
+      <div className="signal-completion-impact" aria-hidden="true"><b>✦</b>{completionShards.map(([x, y, rotation, color], index) => <i key={index} style={{ '--shard-x': x, '--shard-y': y, '--shard-rotation': rotation, '--shard-color': color, '--shard-delay': `${index * 13}ms` } as CSSProperties} />)}</div>
+      <div className="signal-completion-card"><small>TARGET / {completionFx.taskType}</small><strong>{completionFx.title}</strong><span aria-hidden="true" /></div>
+      <div className="signal-completion-verdict"><small>COORDINATE SECURED</small><b>GOAL<br />COMPLETE!</b><time dateTime={todayKey()}>{todayKey().replaceAll('-', '.')}</time></div>
+    </div>, document.body)}
   </section>;
 }
 
