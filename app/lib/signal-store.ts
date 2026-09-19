@@ -1,4 +1,4 @@
-export type Goal = { id: string; taskType: string; title: string; description: string; date: string };
+export type Goal = { id: string; taskType: string; title: string; description: string; date: string; completedDate: string };
 export type PersonalMessage = { id: string; mood: string; title: string; description: string; date: string };
 export type SignalState = { revision: number; goals: Goal[]; messages: PersonalMessage[] };
 
