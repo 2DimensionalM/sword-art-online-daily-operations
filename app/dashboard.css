@@ -407,17 +407,15 @@
 .p4-pie-graffiti { position: absolute; z-index: 5; top: 17px; right: 13px; font-size: .66rem; font-weight: 1000; letter-spacing: .09em; transform: rotate(7deg); }
 .p4-pie-disc { position: relative; z-index: 2; width: 205px; height: 205px; border: 7px solid var(--color-ink); border-radius: 50%; background: var(--color-paper); transform: translateY(-24px) rotateX(43deg) rotateY(8deg) rotateZ(-14deg); transform-style: preserve-3d; filter: drop-shadow(15px 20px 0 rgb(17 18 15 / 25%)); }
 .p4-pie-disc::before { content: ''; position: absolute; z-index: -2; inset: -7px; border-radius: 50%; background: var(--color-ink); transform: translate3d(13px, 18px, -22px); box-shadow: 5px 7px 0 #080806, 9px 13px 0 rgb(17 18 15 / 28%); }
-.p4-pie-disc::after { content: ''; position: absolute; z-index: 2; inset: 58px; border: 6px solid var(--color-ink); border-radius: 50%; background: var(--color-paper); box-shadow: inset 7px 8px 0 rgb(17 18 15 / 10%); pointer-events: none; }
+.p4-pie-disc::after { display: none; }
 .p4-pie-disc svg { display: block; width: 100%; height: 100%; overflow: visible; }
-.p4-pie-base,
-.p4-pie-segment { fill: none; stroke-width: 51; }
-.p4-pie-base { stroke: #dddac8; }
-.p4-pie-segment { stroke: var(--segment-color); cursor: crosshair; transition: stroke-width 150ms ease, filter 150ms ease, opacity 150ms ease; }
+.p4-pie-base { fill: #dddac8; stroke: var(--color-ink); stroke-width: 6px; }
+.p4-pie-segment { fill: var(--segment-color); stroke: var(--color-ink); stroke-width: 3px; cursor: crosshair; transition: stroke-width 150ms ease, filter 150ms ease, opacity 150ms ease; }
 .p4-pie-disc:has(.p4-pie-segment:hover) .p4-pie-segment:not(:hover) { opacity: .45; }
-.p4-pie-segment:hover { stroke-width: 58; filter: drop-shadow(5px 6px 0 var(--color-ink)); }
-.p4-pie-segment:focus { stroke-width: 58; outline: none; filter: drop-shadow(5px 6px 0 var(--color-ink)); }
+.p4-pie-segment:hover { stroke-width: 6px; filter: drop-shadow(5px 6px 0 var(--color-ink)); }
+.p4-pie-segment:focus { stroke-width: 6px; outline: none; filter: drop-shadow(5px 6px 0 var(--color-ink)); }
 .p4-pie-segment.is-muted { opacity: .32 !important; }
-.p4-pie-segment.is-highlighted { opacity: 1 !important; stroke-width: 58; filter: drop-shadow(5px 6px 0 var(--color-ink)); }
+.p4-pie-segment.is-highlighted { opacity: 1 !important; stroke-width: 6px; filter: drop-shadow(5px 6px 0 var(--color-ink)); }
 .p4-pie-figure figcaption { position: absolute; z-index: 8; right: 8px; bottom: 7px; left: 8px; display: grid; grid-template-columns: 1fr 1fr; gap: 3px 6px; padding: 0; background: transparent; }
 .p4-pie-figure:last-child figcaption { bottom: 18px; gap: 6px 8px; }
 .p4-pie-figure figcaption > button { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto; align-items: center; gap: 5px; min-width: 0; padding: 2px 4px; color: inherit; background: transparent; border: 2px solid transparent; text-align: left; cursor: pointer; transition: color 140ms ease, background 140ms ease, box-shadow 140ms ease, transform 140ms ease; }

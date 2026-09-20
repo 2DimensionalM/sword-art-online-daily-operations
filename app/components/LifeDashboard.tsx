@@ -64,8 +64,21 @@ type Allocation = {
 
 const DAY_MS = 24 * 60 * 60_000;
 const MINUTE_MS = 60_000;
-const PIE_RADIUS = 82;
-const PIE_CIRCUMFERENCE = 2 * Math.PI * PIE_RADIUS;
+const PIE_RADIUS = 104;
+
+function pieSlicePath(startRatio: number, endRatio: number) {
+  if (endRatio - startRatio >= .999_999) {
+    return `M 120 ${120 - PIE_RADIUS} A ${PIE_RADIUS} ${PIE_RADIUS} 0 1 1 120 ${120 + PIE_RADIUS} A ${PIE_RADIUS} ${PIE_RADIUS} 0 1 1 120 ${120 - PIE_RADIUS} Z`;
+  }
+  const pointAt = (ratio: number) => {
+    const angle = ratio * Math.PI * 2 - Math.PI / 2;
+    return { x: 120 + Math.cos(angle) * PIE_RADIUS, y: 120 + Math.sin(angle) * PIE_RADIUS };
+  };
+  const start = pointAt(startRatio);
+  const end = pointAt(endRatio);
+  const largeArc = endRatio - startRatio > .5 ? 1 : 0;
+  return `M 120 120 L ${start.x} ${start.y} A ${PIE_RADIUS} ${PIE_RADIUS} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
+}
 const FACTION_TIME_MODE_SESSION_KEY = 'sao-dashboard-faction-time-mode-v1';
 const GRACE_SESSION_KEY = 'sao-dashboard-in-time-grace-v1';
 const TONES: DashboardTone[] = ['purple', 'blue', 'green', 'yellow'];
@@ -416,10 +429,11 @@ function buildLoadBuckets(period: CampaignPeriod, scale: DashboardCampaignScale,
   return buckets;
 }
 
-function PieChart({ title, segments, autoScrollLegend = false, onSegmentSelect }: {
+function PieChart({ title, segments, autoScrollLegend = false, doubleColumnLegend = false, onSegmentSelect }: {
   title: string;
   segments: { id: string; label: string; value: number; color: string }[];
   autoScrollLegend?: boolean;
+  doubleColumnLegend?: boolean;
   onSegmentSelect: (segment: { id: string; label: string; value: number; color: string }) => void;
 }) {
   const [hoveredSegment, setHoveredSegment] = useState<{ id: string; label: string; ratio: number; value: number } | null>(null);
@@ -440,18 +454,17 @@ function PieChart({ title, segments, autoScrollLegend = false, onSegmentSelect }
     legend.scrollTo({ top: Math.max(0, nextTop), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
   };
   let cursor = 0;
-  return <figure className="p4-pie-figure">
+  return <figure className={`p4-pie-figure ${doubleColumnLegend ? 'has-double-column-legend' : ''}`}>
     <div className="p4-pie-stage">
       <div className="p4-pie-disc">
         <svg viewBox="0 0 240 240" role="img" aria-label={title}>
           <circle className="p4-pie-base" cx="120" cy="120" r={PIE_RADIUS} />
           {total > 0 && visibleSegments.map((segment) => {
             const ratio = segment.value / total;
-            const dash = Math.max(1, ratio * PIE_CIRCUMFERENCE - 3);
-            const offset = -cursor * PIE_CIRCUMFERENCE;
+            const startRatio = cursor;
             cursor += ratio;
             const tooltip = { id: segment.id, label: segment.label, ratio, value: segment.value };
-            return <circle key={segment.id} className={`p4-pie-segment ${hoveredSegment ? hoveredSegment.id === segment.id ? 'is-highlighted' : 'is-muted' : ''}`} cx="120" cy="120" r={PIE_RADIUS} strokeDasharray={`${dash} ${PIE_CIRCUMFERENCE - dash}`} strokeDashoffset={offset} style={{ '--segment-color': segment.color } as CSSProperties} transform="rotate(-90 120 120)" tabIndex={0} aria-label={`${segment.label}，${(ratio * 100).toFixed(1)}%，${formatDuration(segment.value)}，按回车查看明细`} onClick={() => onSegmentSelect(segment)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSegmentSelect(segment); } }} onMouseEnter={() => activateSegment(tooltip, true)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => activateSegment(tooltip, true)} onBlur={() => setHoveredSegment(null)} />;
+            return <path key={segment.id} className={`p4-pie-segment ${hoveredSegment ? hoveredSegment.id === segment.id ? 'is-highlighted' : 'is-muted' : ''}`} d={pieSlicePath(startRatio, cursor)} style={{ '--segment-color': segment.color } as CSSProperties} tabIndex={0} aria-label={`${segment.label}，${(ratio * 100).toFixed(1)}%，${formatDuration(segment.value)}，按回车查看明细`} onClick={() => onSegmentSelect(segment)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSegmentSelect(segment); } }} onMouseEnter={() => activateSegment(tooltip, true)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => activateSegment(tooltip, true)} onBlur={() => setHoveredSegment(null)} />;
           })}
         </svg>
       </div>
@@ -991,7 +1004,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
           <div className="operation-load-mode" role="group" aria-label="选择耗时计算方式"><button type="button" title="同组重叠时间只计算一次" aria-pressed={factionTimeMode === 'merged'} onClick={() => setFactionTimeMode('merged')}>MERGED</button><button type="button" title="每个任务耗时分别累计" aria-pressed={factionTimeMode === 'stacked'} onClick={() => setFactionTimeMode('stacked')}>STACKED</button></div>
         </div></header>
         <div className="allocation-pies">
-          <PieChart key={`${allocationDimension}-${factionTimeMode}`} title={allocationDimension === 'tone' ? '阵营耗时占比' : '任务类型耗时占比'} segments={allocationSegments} autoScrollLegend onSegmentSelect={(segment) => openAllocationDrilldown(allocationDimension, segment.id, factionTimeMode)} />
+          <PieChart key={`${allocationDimension}-${factionTimeMode}`} title={allocationDimension === 'tone' ? '阵营耗时占比' : '任务类型耗时占比'} segments={allocationSegments} autoScrollLegend doubleColumnLegend={allocationDimension === 'type'} onSegmentSelect={(segment) => openAllocationDrilldown(allocationDimension, segment.id, factionTimeMode)} />
         </div>
         <footer className="allocation-footer"><span>{allocationMethodLabel}</span></footer>
       </section>
