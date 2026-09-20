@@ -830,13 +830,18 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .theme-night .archive-date-menu { color:var(--night-text); background:var(--night-raised); border-color:var(--night-line); box-shadow:7px 7px 0 var(--night-gold),11px 11px 0 #080806; }.theme-night .archive-date-menu>header button { color:var(--night-gold); background:#080806; border-color:var(--night-line); }.theme-night .archive-date-menu>header button:hover { color:#080806; background:var(--night-gold); }.theme-night .archive-date-menu>header strong { color:var(--night-text); }.theme-night .archive-date-weekdays span { color:var(--night-muted); }.theme-night .archive-date-days button { color:var(--night-text); background:var(--night-control); }.theme-night .archive-date-days button:hover { color:#080806; background:var(--night-gold); border-color:#080806; }.theme-night .archive-date-days button.active { color:#080806; background:var(--night-gold); border-color:var(--night-text); box-shadow:2px 2px 0 #080806; }.theme-night .archive-date-days button.today::after { background:#e5685f; }.theme-night .archive-date-menu footer { color:var(--night-muted); border-color:var(--night-line); }.theme-night .archive-date-menu footer button { color:var(--night-gold); background:#080806; border-color:var(--night-line); }.theme-night .archive-date-menu footer button:hover { color:#080806; background:var(--night-gold); }
 
 /* The active repeater queue is a persistent, manually ordered roster. */
-.recurrence-series-item { grid-template-columns:18px 34px minmax(0,1fr) auto auto; cursor:grab; }
+.recurrence-series-item { grid-template-columns:18px 34px minmax(0,1fr) auto auto auto; cursor:grab; }
 .recurrence-series-item:active { cursor:grabbing; }
 .repeat-drag-handle { display:grid; place-items:center; width:18px; height:30px; color:#706b55; font-size:18px; font-weight:1000; line-height:.7; letter-spacing:-5px; user-select:none; }
 .recurrence-series-item:hover .repeat-drag-handle { color:var(--ink); background:var(--yellow); }
 .recurrence-series-item.is-dragging { opacity:.42; transform:scale(.985); box-shadow:1px 1px 0 var(--ink); }
+.recurrence-series-item>i { border-radius:3px; font-size:10px; letter-spacing:.06em; }
+.repeat-order-controls { display:flex; gap:3px; }
+.recurrence-series-item .repeat-order-controls button { min-width:27px; padding:6px; color:var(--ink); background:#fff8bd; }
+.recurrence-series-item .repeat-order-controls button:disabled { color:#989587; background:#e4e1d3; cursor:not-allowed; opacity:.62; }
+.recurrence-series-item .repeat-order-controls button:disabled:hover { box-shadow:none; transform:none; }
 .theme-night .repeat-drag-handle { color:var(--night-muted); }.theme-night .recurrence-series-item:hover .repeat-drag-handle { color:var(--ink); background:var(--night-gold); }
-@media (max-width:760px) { .recurrence-series-item { grid-template-columns:18px 34px minmax(0,1fr); }.recurrence-series-item>div { grid-column:3/4; }.recurrence-series-item>button:first-of-type { grid-column:2/3; }.recurrence-series-item .stop-repeat { grid-column:3/4; } }
+@media (max-width:760px) { .recurrence-series-item { grid-template-columns:18px 34px minmax(0,1fr); }.recurrence-series-item>div { grid-column:3/4; }.recurrence-series-item .repeat-order-controls { grid-column:1/3; grid-row:2; }.recurrence-series-item>button:first-of-type { grid-column:3/4; grid-row:2; }.recurrence-series-item .stop-repeat { grid-column:3/4; grid-row:3; } }
 
 /* NIGHT LOG distribution modes: detailed ten-night archive or high-density signal field. */
 .sleep-rhythm-map-controls { position:relative; z-index:2; display:flex; flex-direction:column; align-items:flex-end; gap:7px; }

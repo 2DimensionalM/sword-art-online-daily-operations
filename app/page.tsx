@@ -313,7 +313,7 @@ function ensureRecurrenceTemplates(tasks: Task[]) {
   return templates.length || normalized.some((task, index) => task !== tasks[index]) ? [...normalized, ...templates] : tasks;
 }
 
-function processRecurring(tasks: Task[], enabled = true) {
+function processRecurring(tasks: Task[], enabled = true, recurrenceOrder: string[] = []) {
   const recurringReady = ensureRecurrenceTemplates(tasks);
   if (!enabled) return recurringReady;
   const now = new Date();
@@ -337,8 +337,14 @@ function processRecurring(tasks: Task[], enabled = true) {
     return { ...task, seriesHead: true, lastGeneratedDate: today };
   });
   if (!generated.length) return recurringReady;
+  const recurrenceRanks = new Map(recurrenceOrder.map((seriesId, index) => [seriesId, index]));
+  generated.sort((a, b) => {
+    const aRank = recurrenceRanks.get(a.seriesId || a.id);
+    const bRank = recurrenceRanks.get(b.seriesId || b.id);
+    if (aRank !== undefined || bRank !== undefined) return (aRank ?? Number.MAX_SAFE_INTEGER) - (bRank ?? Number.MAX_SAFE_INTEGER);
+    return a.index - b.index;
+  });
   const existingPending = sortTasks(updated.filter((task) => !task.isRecurrenceTemplate && task.status === 'pending'), 'pending');
-  if (!existingPending.some((task) => task.manualOrder !== null)) return [...updated, ...generated];
   const orderedPending = [...generated, ...existingPending];
   const ranks = new Map(orderedPending.map((task, index) => [task.id, index]));
   return [...updated, ...generated].map((task) => !task.isRecurrenceTemplate && task.status === 'pending' ? { ...task, manualOrder: ranks.get(task.id) ?? null } : task);
@@ -1370,7 +1376,7 @@ export default function Home() {
           const savedTheme = localStorage.getItem(THEME_KEY);
           const importedSettings = normalizeSettings(savedSettings ? JSON.parse(savedSettings) : null);
           const importedTheme = savedTheme === 'night' ? 'night' : 'day';
-          const importedTasks = processRecurring(savedTasks ? normalizeTasks(JSON.parse(savedTasks)) : seedTasks(), importedSettings.recurrenceEnabled);
+          const importedTasks = processRecurring(savedTasks ? normalizeTasks(JSON.parse(savedTasks)) : seedTasks(), importedSettings.recurrenceEnabled, importedSettings.recurrenceOrder);
           const imported = await savePlannerState<Task, PlannerSettings>({
             expectedRevision: databaseState.revision,
             tasks: importedTasks,
@@ -1388,7 +1394,7 @@ export default function Home() {
         if (cancelled) return;
         const normalizedSettings = normalizeSettings(databaseState.settings);
         const normalizedTasks = normalizeTasks(databaseState.tasks);
-        const recurringTasks = processRecurring(normalizedTasks, normalizedSettings.recurrenceEnabled);
+        const recurringTasks = processRecurring(normalizedTasks, normalizedSettings.recurrenceEnabled, normalizedSettings.recurrenceOrder);
         databaseRevision.current = databaseState.revision;
         lastPersistedSnapshot.current = JSON.stringify({
           tasks: normalizedTasks,
@@ -1480,7 +1486,7 @@ export default function Home() {
     }, 250);
     return () => window.clearTimeout(timer);
   }, [tasks, settings, theme, hydrated, saveRetry]);
-  useEffect(() => { const interval = window.setInterval(() => setTasks((current) => processRecurring(current, settings.recurrenceEnabled)), 60_000); return () => window.clearInterval(interval); }, [settings.recurrenceEnabled]);
+  useEffect(() => { const interval = window.setInterval(() => setTasks((current) => processRecurring(current, settings.recurrenceEnabled, settings.recurrenceOrder)), 60_000); return () => window.clearInterval(interval); }, [settings.recurrenceEnabled, settings.recurrenceOrder]);
   useEffect(() => { const interval = window.setInterval(() => setClock(new Date()), 1_000); return () => window.clearInterval(interval); }, []);
   useEffect(() => {
     if (!pendingSortOpen) return;
@@ -1657,6 +1663,14 @@ export default function Home() {
       return current.map((task) => task.isRecurrenceTemplate && task.recurrence !== 'none' ? { ...task, manualOrder: ranks.get(task.seriesId || task.id) ?? null } : task);
     });
     setSettings((current) => ({ ...current, recurrenceOrder: orderedSeries }));
+    setToast('循环顺序已保存 · 下次生成将按此进入 Pending');
+  };
+
+  const moveRepeater = (taskId: string, direction: -1 | 1) => {
+    const currentIndex = activeRecurringTasks.findIndex((task) => task.id === taskId);
+    const target = activeRecurringTasks[currentIndex + direction];
+    if (currentIndex < 0 || !target) return;
+    reorderRepeaters(taskId, target.id);
   };
 
   const saveDraft = (event: FormEvent) => {
@@ -1692,8 +1706,11 @@ export default function Home() {
         nextTasks = existing ? current.map((task) => task.id === draft.id ? saved : task) : [...current, saved];
       }
       if (saved.isRecurrenceTemplate && saved.recurrence === 'none') nextTasks = nextTasks.map((task) => task.seriesId === saved.seriesId && !task.isRecurrenceTemplate ? { ...task, recurrence: 'none', recurrenceStartTime: '', seriesHead: false } : task);
-      return saved.isRecurrenceTemplate ? processRecurring(nextTasks, settings.recurrenceEnabled) : ensureRecurrenceTemplates(nextTasks);
+      return saved.isRecurrenceTemplate ? processRecurring(nextTasks, settings.recurrenceEnabled, settings.recurrenceOrder) : ensureRecurrenceTemplates(nextTasks);
     });
+    if (draft.isRecurrenceTemplate && draft.recurrence !== 'none' && !settings.recurrenceOrder.includes(draft.seriesId || draft.id)) {
+      setSettings((current) => ({ ...current, recurrenceOrder: [...current.recurrenceOrder, draft.seriesId || draft.id] }));
+    }
     setDraft(null);
     setToast(draft.isRecurrenceTemplate ? '循环模板已保存' : '任务已保存');
   };
@@ -2140,12 +2157,12 @@ export default function Home() {
             <section className="repeat-master-card">
               <span>MASTER CONTROL / 总开关</span>
               <label className="recurrence-switch"><input type="checkbox" checked={settings.recurrenceEnabled} onChange={(event) => setSettings({ ...settings, recurrenceEnabled: event.target.checked })} /><span><i /></span><strong>{settings.recurrenceEnabled ? 'AUTO-GENERATE ON' : 'AUTO-GENERATE PAUSED'}</strong></label>
-              <p>{settings.recurrenceEnabled ? '系统会根据每个循环任务自己的规则生成下一项 Pending 任务。' : '自动生成已暂停；已有循环规则仍保留，可继续编辑或单独关闭。'}</p>
-              <small>新任务默认不循环。需要循环时，请在任务详情的 Repeat / 循环中单独设置。</small>
+              <p>{settings.recurrenceEnabled ? '系统会根据每个循环任务自己的规则生成下一项 Pending 任务，并按照右侧队列顺序依次置顶。' : '自动生成已暂停；已有循环规则与队列顺序仍保留，可继续编辑或单独关闭。'}</p>
+              <small>拖动右侧循环任务，或使用 ↑ ↓ 调整顺序。新任务默认不循环。</small>
             </section>
             <section className="repeat-roster">
               <header><div><span>ACTIVE REPEATERS</span><strong>{activeRecurringTasks.length} 个循环任务</strong></div><div className="repeat-roster-actions"><button type="button" className="add-repeater" onClick={openNewRecurringTask}>＋ 添加循环任务</button>{activeRecurringTasks.length > 0 && <button type="button" className="toggle-repeaters" aria-expanded={repeatersExpanded} aria-controls="active-repeaters-list" onClick={() => setRepeatersExpanded((current) => !current)}>{repeatersExpanded ? '收起 ↑' : '展开 ↓'}</button>}</div></header>
-              {repeatersExpanded && (activeRecurringTasks.length ? <div className="recurrence-series-list" id="active-repeaters-list">{activeRecurringTasks.map((task) => <article key={task.id} draggable className={`recurrence-series-item status-pending ${repeaterDraggingId === task.id ? 'is-dragging' : ''}`} onDragStart={(event) => { setRepeaterDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => setRepeaterDraggingId('')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (repeaterDraggingId) reorderRepeaters(repeaterDraggingId, task.id); setRepeaterDraggingId(''); }}><span className="repeat-drag-handle" aria-hidden="true">⠿</span><i aria-hidden="true">↻</i><div><strong>{task.title}</strong><span>{recurrenceLabel(task)} · 模板 {task.startedAt ? formatTime(task.startedAt, false) : '未设置开始'} → {task.dueAt ? formatTime(task.dueAt, false) : '未设置截止'}</span></div><button type="button" onClick={() => setDraft(task)}>编辑模板</button><button type="button" className="stop-repeat" onClick={() => stopRecurringTask(task.seriesId)}>关闭循环</button></article>)}</div> : <div className="recurrence-empty"><strong>NO ACTIVE LOOPS</strong><span>尚无循环任务。创建后会在这里持续显示。</span></div>)}
+              {repeatersExpanded && (activeRecurringTasks.length ? <div className="recurrence-series-list" id="active-repeaters-list" aria-label="循环任务生成顺序">{activeRecurringTasks.map((task, index) => <article key={task.id} draggable className={`recurrence-series-item status-pending ${repeaterDraggingId === task.id ? 'is-dragging' : ''}`} onDragStart={(event) => { setRepeaterDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => setRepeaterDraggingId('')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); if (repeaterDraggingId) reorderRepeaters(repeaterDraggingId, task.id); setRepeaterDraggingId(''); }}><span className="repeat-drag-handle" aria-hidden="true">⠿</span><i title={`生成顺序 ${index + 1}`}>{String(index + 1).padStart(2, '0')}</i><div><strong>{task.title}</strong><span>{recurrenceLabel(task)} · 模板 {task.startedAt ? formatTime(task.startedAt, false) : '未设置开始'} → {task.dueAt ? formatTime(task.dueAt, false) : '未设置截止'}</span></div><span className="repeat-order-controls"><button type="button" disabled={index === 0} aria-label={`上移循环任务：${task.title}`} onClick={() => moveRepeater(task.id, -1)}>↑</button><button type="button" disabled={index === activeRecurringTasks.length - 1} aria-label={`下移循环任务：${task.title}`} onClick={() => moveRepeater(task.id, 1)}>↓</button></span><button type="button" onClick={() => setDraft(task)}>编辑模板</button><button type="button" className="stop-repeat" onClick={() => stopRecurringTask(task.seriesId)}>关闭循环</button></article>)}</div> : <div className="recurrence-empty"><strong>NO ACTIVE LOOPS</strong><span>尚无循环任务。创建后会在这里持续显示。</span></div>)}
             </section>
           </div>
         </section>
