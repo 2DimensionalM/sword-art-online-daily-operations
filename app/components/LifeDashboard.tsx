@@ -437,12 +437,14 @@ function PieChart({ title, segments, autoScrollLegend = false, doubleColumnLegen
   onSegmentSelect: (segment: { id: string; label: string; value: number; color: string }) => void;
 }) {
   const [hoveredSegment, setHoveredSegment] = useState<{ id: string; label: string; ratio: number; value: number } | null>(null);
+  const [pieTooltipVisible, setPieTooltipVisible] = useState(false);
   const legendRef = useRef<HTMLElement>(null);
   const legendItemRefs = useRef(new Map<string, HTMLButtonElement>());
   const total = segments.reduce((sum, segment) => sum + segment.value, 0);
   const visibleSegments = segments.filter((segment) => segment.value > 0);
-  const activateSegment = (segment: { id: string; label: string; ratio: number; value: number }, scrollLegend = false) => {
+  const activateSegment = (segment: { id: string; label: string; ratio: number; value: number }, scrollLegend = false, showTooltip = false) => {
     setHoveredSegment(segment);
+    setPieTooltipVisible(showTooltip);
     if (!autoScrollLegend || !scrollLegend) return;
     const legend = legendRef.current;
     const item = legendItemRefs.current.get(segment.id);
@@ -452,6 +454,10 @@ function PieChart({ title, segments, autoScrollLegend = false, doubleColumnLegen
     const itemTop = itemRect.top - legendRect.top + legend.scrollTop;
     const nextTop = itemTop - (legend.clientHeight - itemRect.height) / 2;
     legend.scrollTo({ top: Math.max(0, nextTop), behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  };
+  const deactivateSegment = () => {
+    setHoveredSegment(null);
+    setPieTooltipVisible(false);
   };
   let cursor = 0;
   return <figure className={`p4-pie-figure ${doubleColumnLegend ? 'has-double-column-legend' : ''}`}>
@@ -464,15 +470,18 @@ function PieChart({ title, segments, autoScrollLegend = false, doubleColumnLegen
             const startRatio = cursor;
             cursor += ratio;
             const tooltip = { id: segment.id, label: segment.label, ratio, value: segment.value };
-            return <path key={segment.id} className={`p4-pie-segment ${hoveredSegment ? hoveredSegment.id === segment.id ? 'is-highlighted' : 'is-muted' : ''}`} d={pieSlicePath(startRatio, cursor)} style={{ '--segment-color': segment.color } as CSSProperties} tabIndex={0} aria-label={`${segment.label}，${(ratio * 100).toFixed(1)}%，${formatDuration(segment.value)}，按回车查看明细`} onClick={() => onSegmentSelect(segment)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSegmentSelect(segment); } }} onMouseEnter={() => activateSegment(tooltip, true)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => activateSegment(tooltip, true)} onBlur={() => setHoveredSegment(null)} />;
+            return <path key={segment.id} className={`p4-pie-segment ${hoveredSegment ? hoveredSegment.id === segment.id ? 'is-highlighted' : 'is-muted' : ''}`} d={pieSlicePath(startRatio, cursor)} style={{ '--segment-color': segment.color } as CSSProperties} tabIndex={0} aria-label={`${segment.label}，${(ratio * 100).toFixed(1)}%，${formatDuration(segment.value)}，按回车查看明细`} onClick={() => onSegmentSelect(segment)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onSegmentSelect(segment); } }} onMouseEnter={() => activateSegment(tooltip, true, true)} onMouseLeave={deactivateSegment} onFocus={() => activateSegment(tooltip, true, true)} onBlur={deactivateSegment} />;
           })}
         </svg>
       </div>
-      {hoveredSegment && <div className="p4-chart-tooltip pie-tooltip" role="status"><span>{hoveredSegment.label}</span><strong>{(hoveredSegment.ratio * 100).toFixed(1)}%</strong><small>{formatDuration(hoveredSegment.value)}</small></div>}
+    </div>
+    <div className="p4-pie-readout">
+      <span>TIME SHARE / LIVE</span>
+      {hoveredSegment && pieTooltipVisible && <div className="p4-chart-tooltip pie-tooltip" role="status"><span>{hoveredSegment.label}</span><strong>{(hoveredSegment.ratio * 100).toFixed(1)}%</strong><small>{formatDuration(hoveredSegment.value)}</small></div>}
     </div>
     <figcaption ref={legendRef}>{visibleSegments.map((segment) => {
       const tooltip = { id: segment.id, label: segment.label, ratio: total ? segment.value / total : 0, value: segment.value };
-      return <button ref={(node) => { if (node) legendItemRefs.current.set(segment.id, node); else legendItemRefs.current.delete(segment.id); }} type="button" key={segment.id} className={hoveredSegment?.id === segment.id ? 'is-active' : ''} onClick={() => onSegmentSelect(segment)} onMouseEnter={() => activateSegment(tooltip)} onMouseLeave={() => setHoveredSegment(null)} onFocus={() => activateSegment(tooltip)} onBlur={() => setHoveredSegment(null)}><i style={{ background: segment.color }} /><strong>{segment.label}</strong><small>{(tooltip.ratio * 100).toFixed(1)}%</small></button>;
+      return <button ref={(node) => { if (node) legendItemRefs.current.set(segment.id, node); else legendItemRefs.current.delete(segment.id); }} type="button" key={segment.id} className={hoveredSegment?.id === segment.id ? 'is-active' : ''} onClick={() => onSegmentSelect(segment)} onMouseEnter={() => activateSegment(tooltip)} onMouseLeave={deactivateSegment} onFocus={() => activateSegment(tooltip)} onBlur={deactivateSegment}><i style={{ background: segment.color }} /><strong>{segment.label}</strong><small>{(tooltip.ratio * 100).toFixed(1)}%</small></button>;
     })}{!visibleSegments.length && <p className="allocation-empty">本周期尚无行动记录</p>}</figcaption>
   </figure>;
 }
