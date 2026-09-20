@@ -25,6 +25,7 @@ type SleepDisplayMode = 'standard' | 'compact';
 type ArchiveFilterOption = { value: string; label: string; tone?: string };
 type ScheduleVariant = 'pending-start' | 'pending-deadline' | 'pending-range' | 'in-progress' | 'completed';
 type DayScheduleBlock = { id: string; task: Task; startMinute: number; endMinute: number; labelStartMinute: number; labelEndMinute: number; lane: number; laneCount: number; offline: boolean; variant: ScheduleVariant; continuesBefore: boolean; continuesAfter: boolean; terminal: boolean };
+type DaySleepBlock = { id: string; record: SleepRecord; startMinute: number; endMinute: number; displayStartMinute: number; displayEndMinute: number; continuesBefore: boolean; continuesAfter: boolean };
 
 type Task = {
   id: string;
@@ -534,6 +535,34 @@ function taskWindowOnDay(task: Task, dayKey: string, referenceNow = new Date()) 
 function actionDayMinute(minute: number) {
   if (minute <= ACTION_DAY_ACTIVE_START) return (minute - ACTION_DAY_START) * ACTION_DAY_OFFLINE_DISPLAY_MINUTES / (ACTION_DAY_ACTIVE_START - ACTION_DAY_START);
   return ACTION_DAY_OFFLINE_DISPLAY_MINUTES + minute - ACTION_DAY_ACTIVE_START;
+}
+
+function sleepWindowsInActionDay(records: SleepRecord[], dayKey: string): DaySleepBlock[] {
+  const dayStart = new Date(`${dayKey}T00:00:00`);
+  const actionStart = new Date(dayStart);
+  actionStart.setHours(2, 0, 0, 0);
+  const actionEnd = new Date(actionStart);
+  actionEnd.setDate(actionEnd.getDate() + 1);
+
+  return records.flatMap((record) => {
+    const sleepStart = new Date(record.sleepStartedAt);
+    const wakeTime = new Date(record.wakeAt);
+    if (Number.isNaN(+sleepStart) || Number.isNaN(+wakeTime) || +wakeTime <= +sleepStart || +sleepStart >= +actionEnd || +wakeTime <= +actionStart) return [];
+    const visibleStart = new Date(Math.max(+sleepStart, +actionStart));
+    const visibleEnd = new Date(Math.min(+wakeTime, +actionEnd));
+    const startMinute = (+visibleStart - +dayStart) / 60_000;
+    const endMinute = (+visibleEnd - +dayStart) / 60_000;
+    return [{
+      id: `sleep-${record.id}`,
+      record,
+      startMinute,
+      endMinute,
+      displayStartMinute: actionDayMinute(startMinute),
+      displayEndMinute: actionDayMinute(endMinute),
+      continuesBefore: +sleepStart < +actionStart,
+      continuesAfter: +wakeTime > +actionEnd,
+    }];
+  }).sort((a, b) => a.displayStartMinute - b.displayStartMinute);
 }
 
 function layoutDaySchedule(tasks: Task[], dayKey: string, referenceNow = new Date()): DayScheduleBlock[] {
@@ -1879,10 +1908,15 @@ export default function Home() {
   const completedToday = todayActionTasks.filter((task) => task.completedAt && localDateKey(new Date(task.completedAt)) === localDateKey(now)).length;
   const selectedDayTasks = missionTasks.filter((task) => taskOccursInActionDay(task, selectedDay, now)).sort((a, b) => +new Date(calendarTaskDate(a, now)) - +new Date(calendarTaskDate(b, now)));
   const dayScheduleBlocks = useMemo(() => layoutDaySchedule(selectedDayTasks, selectedDay, now), [selectedDayTasks, selectedDay, now]);
+  const daySleepBlocks = useMemo(() => sleepWindowsInActionDay(sleepRecords, selectedDay), [sleepRecords, selectedDay]);
   const dayTimelineEntries = useMemo(() => selectedDayTasks.flatMap((task) => {
     const window = taskWindowOnDay(task, selectedDay, now);
     return window ? [{ task, ...window, displayStartMinute: actionDayMinute(window.startMinute) }] : [];
   }).sort((a, b) => a.displayStartMinute - b.displayStartMinute), [selectedDayTasks, selectedDay, now]);
+  const dailyFlowEntries = useMemo(() => [
+    ...dayTimelineEntries.map((entry) => ({ kind: 'task' as const, id: entry.task.id, displayStartMinute: entry.displayStartMinute, entry })),
+    ...daySleepBlocks.map((entry) => ({ kind: 'sleep' as const, id: entry.id, displayStartMinute: entry.displayStartMinute, entry })),
+  ].sort((a, b) => a.displayStartMinute - b.displayStartMinute), [dayTimelineEntries, daySleepBlocks]);
   const linkScheduleMapTask = (taskId: string) => {
     setLinkedScheduleTaskId(taskId);
     const timeline = scheduleTimelineRef.current;
@@ -2144,12 +2178,17 @@ export default function Home() {
 
     {dayAgendaOpen && <div className="modal-backdrop day-schedule-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setDayAgendaOpen(false); }}>
       <section className="day-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="day-schedule-title">
-        <header><div><span>SCHOOL LIFE / DAILY FLOW</span><h2 id="day-schedule-title">{selectedDay.replaceAll('-', ' / ')}</h2><p>{selectedDayTasks.length} MISSIONS · 今天如何度过？</p></div><button type="button" className="close-button" aria-label="关闭 DAILY FLOW" onClick={() => setDayAgendaOpen(false)}>×</button></header>
-        <div className="day-schedule-body"><section className="schedule-map"><header><span>TIME DISTRIBUTION</span><strong>全天任务分布</strong></header><div className="schedule-stage">
+        <header><div><span>SCHOOL LIFE / DAILY FLOW</span><h2 id="day-schedule-title">{selectedDay.replaceAll('-', ' / ')}</h2><p>{selectedDayTasks.length} MISSIONS · {daySleepBlocks.length} REST SIGNALS · 今天如何度过？</p></div><button type="button" className="close-button" aria-label="关闭 DAILY FLOW" onClick={() => setDayAgendaOpen(false)}>×</button></header>
+        <div className="day-schedule-body"><section className="schedule-map"><header><span>TIME DISTRIBUTION</span><strong>全天任务与睡眠分布</strong></header><div className="schedule-stage">
           <div className="schedule-hours"><span>02</span><span>07</span><span>12</span><span>18</span><span>00</span><span>02</span><b>OFF<br />02—07</b></div>
           <div className="schedule-lanes">
             <div className="schedule-off-zone schedule-off-zone-midnight" aria-hidden="true" />
             <div className="schedule-off-zone schedule-off-zone-morning" aria-hidden="true" />
+            {daySleepBlocks.map((block) => {
+              const duration = Math.max(2.2, (block.displayEndMinute - block.displayStartMinute) / (ACTION_DAY_DISPLAY_MINUTES / 100));
+              const label = `睡眠 ${formatTime(block.record.sleepStartedAt, false)}–${formatTime(block.record.wakeAt, false)}，共 ${formatSleepDuration(block.record.sleepStartedAt, block.record.wakeAt)}`;
+              return <div key={block.id} className={`schedule-sleep-block ${duration < 4.8 ? 'is-compact' : ''} ${block.continuesBefore ? 'continues-before' : ''} ${block.continuesAfter ? 'continues-after' : ''}`} style={{ top: `${block.displayStartMinute / (ACTION_DAY_DISPLAY_MINUTES / 100)}%`, height: `${duration}%` }} aria-label={label} title={label}><span aria-hidden="true">☾</span><strong>SLEEP</strong><time>{formatTime(block.record.sleepStartedAt, false)}–{formatTime(block.record.wakeAt, false)}</time><small>{formatSleepDuration(block.record.sleepStartedAt, block.record.wakeAt)}</small></div>;
+            })}
             {dayScheduleBlocks.map((block) => {
             const rawDuration = (block.endMinute - block.startMinute) / (ACTION_DAY_DISPLAY_MINUTES / 100);
             const duration = Math.max(block.variant === 'in-progress' ? 4.4 : 1.6, rawDuration);
@@ -2160,7 +2199,14 @@ export default function Home() {
             const blockLabel = `${scheduleTimeLabel(block.variant, block.labelStartMinute, block.labelEndMinute, block.terminal)} ${block.task.title}`;
             return <button key={block.id} aria-label={blockLabel} title={blockLabel} className={`schedule-block type-${typeColor(block.task.taskType, settings)} variant-${block.variant} ${hideLabel ? 'is-brief' : compactLabel ? 'is-compact' : ''} ${block.offline ? 'is-offline' : ''} ${crossDay ? 'is-cross-day' : ''} ${block.continuesBefore ? 'continues-before' : ''} ${block.continuesAfter ? 'continues-after' : ''} ${linkedScheduleTaskId === block.task.id ? 'is-linked-highlight' : ''}`} style={{ top: `${block.startMinute / (ACTION_DAY_DISPLAY_MINUTES / 100)}%`, height: `${duration}%`, left: `calc(${block.lane / block.laneCount * 100}% + 4px)`, width: `calc(${100 / block.laneCount}% - 8px)` }} onMouseEnter={() => linkScheduleMapTask(block.task.id)} onMouseLeave={() => setLinkedScheduleTaskId('')} onFocus={() => linkScheduleMapTask(block.task.id)} onBlur={() => setLinkedScheduleTaskId('')} onClick={() => setDraft(block.task)}><time>{scheduleTimeLabel(block.variant, block.labelStartMinute, block.labelEndMinute, block.terminal)}</time><strong>{block.task.title}</strong>{crossDay && <span className="schedule-cross-day">{block.continuesBefore && block.continuesAfter ? '↕ THROUGH' : block.continuesBefore ? '↳ FROM PREV' : '↘ NEXT DAY'}</span>}</button>;
           })}</div>
-        </div></section><section className="schedule-list"><header><span>AFTER SCHOOL AGENDA</span><strong>当天任务表</strong></header><div className="timeline" ref={scheduleTimelineRef}>{dayTimelineEntries.map((entry) => <button key={entry.task.id} data-schedule-task-id={entry.task.id} className={linkedScheduleTaskId === entry.task.id ? 'is-linked-highlight' : ''} onMouseEnter={() => setLinkedScheduleTaskId(entry.task.id)} onMouseLeave={() => setLinkedScheduleTaskId('')} onFocus={() => setLinkedScheduleTaskId(entry.task.id)} onBlur={() => setLinkedScheduleTaskId('')} onClick={() => setDraft(entry.task)}><time>{scheduleTimeLabel(entry.variant, entry.startMinute, entry.endMinute, !entry.continuesAfter)}</time><i className={`type-${typeColor(entry.task.taskType, settings)}`} /><div><strong>{entry.task.title}</strong><span>{entry.task.taskType} · {entry.task.location}</span></div></button>)}{!dayTimelineEntries.length && <div className="agenda-empty"><strong>FREE DAY!</strong><span>这一天还没有安排任务</span></div>}</div><button className="schedule-add" onClick={() => openNewTask('pending', new Date(`${selectedDay}T12:00`).toISOString())}>＋ ADD MISSION / 添加任务</button></section></div>
+        </div></section><section className="schedule-list"><header><span>DAY AGENDA</span><strong>当天时间表</strong></header><div className="timeline" ref={scheduleTimelineRef}>{dailyFlowEntries.map((flowItem) => {
+          if (flowItem.kind === 'sleep') {
+            const { record } = flowItem.entry;
+            return <article key={flowItem.id} className="schedule-sleep-entry"><time>{formatTime(record.sleepStartedAt, false)}–{formatTime(record.wakeAt, false)}</time><i aria-hidden="true">☾</i><div><strong>睡眠 / SLEEP</strong><span>{formatSleepDuration(record.sleepStartedAt, record.wakeAt)} · NIGHT LOG</span></div></article>;
+          }
+          const { entry } = flowItem;
+          return <button key={flowItem.id} data-schedule-task-id={entry.task.id} className={linkedScheduleTaskId === entry.task.id ? 'is-linked-highlight' : ''} onMouseEnter={() => setLinkedScheduleTaskId(entry.task.id)} onMouseLeave={() => setLinkedScheduleTaskId('')} onFocus={() => setLinkedScheduleTaskId(entry.task.id)} onBlur={() => setLinkedScheduleTaskId('')} onClick={() => setDraft(entry.task)}><time>{scheduleTimeLabel(entry.variant, entry.startMinute, entry.endMinute, !entry.continuesAfter)}</time><i className={`type-${typeColor(entry.task.taskType, settings)}`} /><div><strong>{entry.task.title}</strong><span>{entry.task.taskType} · {entry.task.location}</span></div></button>;
+        })}{!dailyFlowEntries.length && <div className="agenda-empty"><strong>FREE DAY!</strong><span>这一天还没有任务或睡眠记录</span></div>}</div><button className="schedule-add" onClick={() => openNewTask('pending', new Date(`${selectedDay}T12:00`).toISOString())}>＋ ADD MISSION / 添加任务</button></section></div>
       </section>
     </div>}
 
