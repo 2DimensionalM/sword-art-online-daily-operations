@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { DiscardSignalDialog } from './components/DiscardSignalDialog';
 import { GoalRadar, SignalRoom, SignalTicker, useSignals } from './components/SignalRoom';
 import { BrandLockup } from './components/BrandLockup';
@@ -843,13 +843,14 @@ function ArchiveDateFilter({ value, onChange }: { value: string; onChange: (valu
 function RichTextDescription({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<Range | null>(null);
-  const createChecklistInput = () => {
+  const createChecklistInput = useCallback(() => {
     const input = document.createElement('input');
     input.type = 'checkbox';
     input.contentEditable = 'false';
+    input.draggable = false;
     input.setAttribute('aria-label', '完成清单项');
     return input;
-  };
+  }, []);
   const createChecklistItem = () => {
     const item = document.createElement('li');
     const entry = document.createElement('span');
@@ -859,9 +860,19 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
     item.insertAdjacentElement('beforeend', entry);
     return item;
   };
-  const normalizeChecklistItem = (item: HTMLLIElement) => {
-    const checkbox = Array.from(item.children).find((child): child is HTMLInputElement => child instanceof HTMLInputElement && child.type === 'checkbox');
-    if (!checkbox) return;
+  const normalizeChecklistItem = useCallback((item: HTMLLIElement) => {
+    const checkboxes = [
+      ...Array.from(item.children).filter((child): child is HTMLInputElement => child instanceof HTMLInputElement && child.type === 'checkbox'),
+      ...Array.from(item.querySelectorAll<HTMLInputElement>(':scope > .checklist-entry input[type="checkbox"]')),
+    ];
+    const checkbox = checkboxes[0] ?? createChecklistInput();
+    checkboxes.slice(1).forEach((duplicate) => duplicate.remove());
+    if (checkbox.parentElement !== item) checkbox.remove();
+    if (item.firstElementChild !== checkbox) item.insertAdjacentElement('afterbegin', checkbox);
+    checkbox.contentEditable = 'false';
+    checkbox.draggable = false;
+    checkbox.removeAttribute('style');
+    checkbox.removeAttribute('class');
     const existingEntry = Array.from(item.children).find((child): child is HTMLSpanElement => child instanceof HTMLSpanElement && child.classList.contains('checklist-entry'));
     if (existingEntry) return;
     const entry = document.createElement('span');
@@ -873,11 +884,11 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
     });
     if (!entry.childNodes.length) entry.textContent = '\u00a0';
     item.insertAdjacentElement('beforeend', entry);
-  };
+  }, [createChecklistInput]);
   useEffect(() => {
     if (editorRef.current && editorRef.current.innerHTML !== descriptionMarkup(value)) editorRef.current.innerHTML = descriptionMarkup(value);
     editorRef.current?.querySelectorAll<HTMLLIElement>('ul.checklist > li').forEach(normalizeChecklistItem);
-  }, [value]);
+  }, [value, normalizeChecklistItem]);
   const rememberSelection = () => {
     const selection = window.getSelection();
     if (!selection?.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return;
@@ -1142,6 +1153,36 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
     placeCaretAtChecklistTextStart(item);
     rememberSelection();
   };
+  const pastePlainText = (event: React.ClipboardEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const plainText = event.clipboardData.getData('text/plain').replace(/\r\n?/g, '\n');
+    if (!plainText) return;
+    if (!document.execCommand('insertText', false, plainText)) {
+      const selection = window.getSelection();
+      if (!selection?.rangeCount || !editorRef.current?.contains(selection.anchorNode)) return;
+      const range = selection.getRangeAt(0);
+      range.deleteContents();
+      const node = document.createTextNode(plainText);
+      range.insertNode(node);
+      range.setStartAfter(node);
+      range.collapse(true);
+      selection.removeAllRanges();
+      selection.addRange(range);
+    }
+    rememberSelection();
+    onChange(editorRef.current?.innerHTML ?? '');
+  };
+  const copyDescriptionText = (event: React.ClipboardEvent<HTMLDivElement>, cut = false) => {
+    const selection = window.getSelection();
+    if (!selection?.rangeCount || !editorRef.current?.contains(selection.anchorNode) || !editorRef.current.contains(selection.focusNode)) return;
+    event.preventDefault();
+    event.clipboardData.setData('text/plain', selection.toString());
+    if (!cut || selection.isCollapsed) return;
+    selection.getRangeAt(0).deleteContents();
+    editorRef.current.querySelectorAll<HTMLLIElement>('ul.checklist > li').forEach(normalizeChecklistItem);
+    rememberSelection();
+    onChange(editorRef.current.innerHTML);
+  };
   return <div className="field field-wide rich-description-field"><span>Description / 描述</span><div className="rich-text-toolbar" role="toolbar" aria-label="描述文字格式">
     <button type="button" title="加粗" aria-label="加粗" onMouseDown={(event) => event.preventDefault()} onClick={() => format('bold')}><b>B</b></button>
     <button type="button" title="斜体" aria-label="斜体" onMouseDown={(event) => event.preventDefault()} onClick={() => format('italic')}><i>I</i></button>
@@ -1150,7 +1191,7 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
     <button type="button" title="项目符号" aria-label="项目符号" onMouseDown={(event) => event.preventDefault()} onClick={() => format('insertUnorderedList')}>• ≡</button>
     <button type="button" title="编号列表" aria-label="编号列表" onMouseDown={(event) => event.preventDefault()} onClick={() => format('insertOrderedList')}>1 ≡</button>
     <button type="button" title="待办清单" aria-label="待办清单" onMouseDown={(event) => event.preventDefault()} onClick={() => format('checklist')}>☑ ≡</button>
-  </div><div ref={editorRef} className="rich-description-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="补充任务背景、完成标准或下一步…" onFocus={rememberSelection} onMouseDown={focusEmptyChecklistItem} onKeyDown={(event) => { continueChecklist(event); if (!event.defaultPrevented) deleteEmptyChecklistItem(event); }} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onClick={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === 'checkbox') { target.toggleAttribute('checked', target.checked); onChange(editorRef.current?.innerHTML ?? ''); } }} onInput={() => { rememberSelection(); onChange(editorRef.current?.innerHTML ?? ''); }} /></div>;
+  </div><div ref={editorRef} className="rich-description-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="补充任务背景、完成标准或下一步…" onFocus={rememberSelection} onMouseDown={focusEmptyChecklistItem} onCopy={copyDescriptionText} onCut={(event) => copyDescriptionText(event, true)} onPaste={pastePlainText} onKeyDown={(event) => { continueChecklist(event); if (!event.defaultPrevented) deleteEmptyChecklistItem(event); }} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onClick={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === 'checkbox') { target.toggleAttribute('checked', target.checked); onChange(editorRef.current?.innerHTML ?? ''); } }} onInput={() => { rememberSelection(); onChange(editorRef.current?.innerHTML ?? ''); }} /></div>;
 }
 
 function TaskCard({ task, color, now, dragging, landed, onOpen, onStart, onDragStart, onDragEnd, onDragOver, onDrop }: {
@@ -1262,6 +1303,7 @@ export default function Home() {
   const [sleepStandardExpanded, setSleepStandardExpanded] = useState(false);
   const [repeatersExpanded, setRepeatersExpanded] = useState(true);
   const [cancellationLogExpanded, setCancellationLogExpanded] = useState(false);
+  const [cancellationLogDay, setCancellationLogDay] = useState('');
   const [repeaterDraggingId, setRepeaterDraggingId] = useState('');
   const missionTasks = useMemo(() => tasks.filter((task) => !task.isRecurrenceTemplate), [tasks]);
 
@@ -1548,7 +1590,8 @@ export default function Home() {
       return hasManualOrder ? (a.manualOrder ?? Number.MAX_SAFE_INTEGER) - (b.manualOrder ?? Number.MAX_SAFE_INTEGER) : a.index - b.index;
     });
   }, [settings.recurrenceOrder, tasks]);
-  const visibleCancellationEvents = cancellationLogExpanded ? taskDeletionEvents : taskDeletionEvents.slice(0, CANCELLATION_LOG_LIMIT);
+  const matchingCancellationEvents = cancellationLogDay ? taskDeletionEvents.filter((event) => localDateKey(new Date(event.deletedAt)) === cancellationLogDay) : taskDeletionEvents;
+  const visibleCancellationEvents = cancellationLogExpanded || cancellationLogDay ? matchingCancellationEvents : matchingCancellationEvents.slice(0, CANCELLATION_LOG_LIMIT);
 
   const filteredTable = useMemo(() => {
     const query = tableQuery.trim().toLowerCase();
@@ -1906,7 +1949,8 @@ export default function Home() {
     setLinkedScheduleTaskId('');
     navigateTo('calendar', () => setDayAgendaOpen(true));
   };
-  const openCancellationLog = () => {
+  const openCancellationLog = (dayKey: string) => {
+    setCancellationLogDay(dayKey);
     navigateTo('settings', () => window.setTimeout(() => document.querySelector('.cancellation-log-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 80));
   };
   const now = clock;
@@ -2170,6 +2214,7 @@ export default function Home() {
           <header><span>04</span><div><h3>CANCELLATION LOG</h3><p>首页取消统计的数据来源与手动清理入口</p></div><strong>{taskDeletionEvents.length} EVENTS</strong></header>
           <div className="cancellation-log-body">
             <div className="cancellation-log-rule"><span>AUDIT RULE</span><strong>删除普通任务或循环实例时记录；删除循环模板不计入取消。</strong><small>移除留痕只影响统计，不会恢复原任务。</small></div>
+            {cancellationLogDay && <div className="cancellation-log-date-filter"><strong>{cancellationLogDay.replaceAll('-', ' / ')} · {matchingCancellationEvents.length} EVENTS</strong><button type="button" onClick={() => setCancellationLogDay('')}>SHOW ALL / 查看全部 ×</button></div>}
             {visibleCancellationEvents.length ? <div className="cancellation-event-list">{visibleCancellationEvents.map((event, index) => {
               const missionMoment = event.dueAt || event.startedAt || event.completedAt;
               return <article key={event.id}>
@@ -2178,8 +2223,8 @@ export default function Home() {
                 <time>{formatTime(event.deletedAt)}<small>DELETED</small></time>
                 <button type="button" onClick={() => void removeCancellationEvent(event.id)} aria-label={`移除 ${event.title} 的取消留痕`}>×<span>REMOVE</span></button>
               </article>;
-            })}</div> : <div className="cancellation-log-empty"><strong>NO CANCELLATION EVENTS</strong><span>删除任务后，取消留痕会出现在这里。</span></div>}
-            {taskDeletionEvents.length > CANCELLATION_LOG_LIMIT && <button type="button" className="cancellation-log-toggle" aria-expanded={cancellationLogExpanded} onClick={() => setCancellationLogExpanded((current) => !current)}>{cancellationLogExpanded ? '收起记录 ↑' : `显示其余 ${taskDeletionEvents.length - CANCELLATION_LOG_LIMIT} 条 ↓`}</button>}
+            })}</div> : <div className="cancellation-log-empty"><strong>NO CANCELLATION EVENTS</strong><span>{cancellationLogDay ? '当天没有取消留痕，可查看全部记录。' : '删除任务后，取消留痕会出现在这里。'}</span></div>}
+            {!cancellationLogDay && taskDeletionEvents.length > CANCELLATION_LOG_LIMIT && <button type="button" className="cancellation-log-toggle" aria-expanded={cancellationLogExpanded} onClick={() => setCancellationLogExpanded((current) => !current)}>{cancellationLogExpanded ? '收起记录 ↑' : `显示其余 ${taskDeletionEvents.length - CANCELLATION_LOG_LIMIT} 条 ↓`}</button>}
           </div>
         </section>
       </div>

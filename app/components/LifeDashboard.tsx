@@ -43,7 +43,7 @@ type LifeDashboardProps = {
   onCampaignWindowChange: (scale: DashboardCampaignScale, periodId: string) => void;
   onNavigate: (view: 'board' | 'table' | 'calendar' | 'sleep') => void;
   onOpenCalendarDay: (dayKey: string) => void;
-  onOpenCancellationLog: () => void;
+  onOpenCancellationLog: (dayKey: string) => void;
 };
 
 type CampaignPeriod = {
@@ -320,11 +320,16 @@ function isInTimeCompletion(task: DashboardTask, graceMinutes: GraceMinutes) {
   return delta <= graceMinutes * MINUTE_MS;
 }
 
+function deadlineClearsInPeriod(tasks: DashboardTask[], period: CampaignPeriod) {
+  // Attribute the verdict to the final deadline, even when completion crosses a day or campaign boundary.
+  return tasks.filter((task) => inPeriod(task.dueAt, period) && validDate(task.completedAt));
+}
+
 function periodMetrics(period: CampaignPeriod, tasks: DashboardTask[], events: DeadlineEvent[], deletionEvents: TaskDeletionEvent[], sleepRecords: SleepRecord[], now: Date, graceMinutes: GraceMinutes) {
   const periodTasks = tasks.filter((task) => taskBelongsToPeriod(task, period));
   const mustTasks = periodTasks.filter((task) => task.priority === 'must');
   const clears = tasks.filter((task) => inPeriod(task.completedAt, period));
-  const deadlineClears = clears.filter((task) => validDate(task.dueAt));
+  const deadlineClears = deadlineClearsInPeriod(tasks, period);
   const inTimeCount = deadlineClears.filter((task) => isInTimeCompletion(task, graceMinutes)).length;
   const periodEvents = events.filter((event) => event.priorityAtChange === 'must' && isDeadlineExtension(event) && inPeriod(event.changedAt, period));
   const changedMustIds = new Set(periodEvents.map((event) => event.taskId).filter((id) => mustTasks.some((task) => task.id === id)));
@@ -529,6 +534,8 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
     return 60;
   });
   const [drilldown, setDrilldown] = useState<DashboardDrilldownData | null>(null);
+  const [disciplineCalendar, setDisciplineCalendar] = useState<OverviewCalendarDrilldownData | null>(null);
+  const [inTimePeriod, setInTimePeriod] = useState<CampaignPeriod | null>(null);
   const [overviewDrilldown, setOverviewDrilldown] = useState<OverviewMetricId | null>(null);
   const [sleepSmaGeometry, setSleepSmaGeometry] = useState<{ sourceKey: string; left: number; top: number; width: number; height: number; points: { id: string; x: number; y: number }[] } | null>(null);
   const periodSelectorRef = useRef<HTMLDivElement>(null);
@@ -603,7 +610,8 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       const awakeMetrics = hasWakeRecord ? awakeWindowMetrics(tasks, sleepRecords, dayPeriod, now) : null;
       const fitnessCount = dayCompletions.filter((task) => FITNESS_TYPE_PATTERN.test(task.taskType)).length;
       const meditationCount = dayCompletions.filter((task) => MEDITATION_TYPE_PATTERN.test(task.taskType)).length;
-      const cancellationCount = taskDeletionEvents.filter((event) => inPeriod(event.deletedAt, dayPeriod)).length;
+      const dayCancellations = taskDeletionEvents.filter((event) => inPeriod(event.deletedAt, dayPeriod));
+      const cancellationCount = dayCancellations.length;
       const active = !future && (trackedMinutes > 0 || dayCompletions.length > 0);
       let value = '';
       let unit = '';
@@ -650,7 +658,8 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
         date: start,
         numericValue,
         trendValue: overviewDrilldown === 'busy' && !hasWakeRecord ? null : numericValue,
-        day: { id: dayPeriod.id, day: start.getDate(), dateLabel: dayPeriod.compactLabel, future, selected, outsideMonth: start.getMonth() !== panelMonth, value, unit, marker, markerCount, detail, intensity: 0 },
+        day: { id: dayPeriod.id, day: start.getDate(), dateLabel: dayPeriod.compactLabel, future, selected, outsideMonth: start.getMonth() !== panelMonth, value, unit, marker, markerCount, detail, intensity: 0,
+          items: overviewDrilldown === 'cancelled' ? dayCancellations.map((event) => ({ title: event.title, detail: `${formatMoment(event.deletedAt)} · ${event.taskType}` })) : undefined },
       };
     };
     const dailyRecords: ReturnType<typeof buildDayRecord>[] = [];
@@ -749,45 +758,71 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
     value,
     tone,
   });
-  const openInTimeDrilldown = (targetPeriod: CampaignPeriod) => {
-    const deadlineClears = tasks.filter((task) => inPeriod(task.completedAt, targetPeriod) && validDate(task.dueAt));
-    const inTime = deadlineClears.filter((task) => isInTimeCompletion(task, graceMinutes));
-    const late = deadlineClears.filter((task) => !isInTimeCompletion(task, graceMinutes));
-    const targetMetrics = periodMetrics(targetPeriod, tasks, deadlineEvents, taskDeletionEvents, sleepRecords, now, graceMinutes);
-    const deadlineItem = (task: DashboardTask) => {
+  const disciplinePanels = (targetPeriod: CampaignPeriod, dayItems: Map<string, { title: string; detail: string }[]>, kind: 'late' | 'revision'): OverviewCalendarPanel[] => {
+    const months = new Set<string>();
+    const cursor = new Date(targetPeriod.start);
+    while (+cursor < +targetPeriod.end) {
+      months.add(`${cursor.getFullYear()}-${cursor.getMonth()}`);
+      cursor.setDate(cursor.getDate() + 1);
+    }
+    const startKey = dateKey(targetPeriod.start);
+    const endKey = dateKey(targetPeriod.end);
+    const maxCount = Math.max(1, ...Array.from(dayItems.entries()).filter(([key]) => key >= startKey && key < endKey).map(([, items]) => items.length));
+    return Array.from(months, (id) => {
+      const [year, month] = id.split('-').map(Number);
+      const monthStart = new Date(year, month, 1);
+      const gridStart = new Date(monthStart);
+      gridStart.setDate(gridStart.getDate() - ((gridStart.getDay() + 6) % 7));
+      return {
+        id,
+        label: `${new Intl.DateTimeFormat('en-US', { month: 'short' }).format(monthStart).toUpperCase()} ${year} / ${month + 1}月`,
+        cells: Array.from({ length: 42 }, (_, index): OverviewCalendarDay => {
+          const date = new Date(gridStart);
+          date.setDate(date.getDate() + index);
+          const key = dateKey(date);
+          const items = dayItems.get(key) ?? [];
+          const selected = +date >= +targetPeriod.start && +date < +targetPeriod.end && date.getMonth() === month;
+          return { id: key, day: date.getDate(), dateLabel: `${date.getMonth() + 1}/${date.getDate()}`, future: +date > +now, selected, outsideMonth: date.getMonth() !== month,
+            value: items.length ? String(items.length) : '', unit: items.length ? kind === 'late' ? 'LATE' : 'CHANGES' : '',
+            marker: items.length ? kind === 'late' ? 'cancel' : 'pin' : undefined, markerCount: items.length,
+            detail: `${key} · ${items.length ? kind === 'late' ? `${items.length} 项超时完成` : `${items.length} 次 Must 截止变更` : '无相关记录'}`,
+            intensity: Math.min(1, items.length / maxCount), items };
+        }),
+      };
+    });
+  };
+  const openInTimeDrilldown = (targetPeriod: CampaignPeriod, selectedGrace: GraceMinutes = graceMinutes) => {
+    const lateCompletions = tasks.filter((task) => validDate(task.dueAt) && validDate(task.completedAt) && !isInTimeCompletion(task, selectedGrace));
+    const targetMetrics = periodMetrics(targetPeriod, tasks, deadlineEvents, taskDeletionEvents, sleepRecords, now, selectedGrace);
+    const selectedGraceLabel = GRACE_OPTIONS.find((option) => option.value === selectedGrace)?.label ?? '1H';
+    const byDay = new Map<string, { title: string; detail: string }[]>();
+    lateCompletions.forEach((task) => {
       const delta = completionDeadlineDelta(task) ?? 0;
-      const isInTime = isInTimeCompletion(task, graceMinutes);
-      const outcome = delta <= 0 ? 'EARLY' : isInTime ? 'GRACE' : 'LATE';
-      return makeTaskItem(task, `${formatDuration(Math.abs(delta) / MINUTE_MS)} ${outcome}`, `完成 ${formatMoment(task.completedAt)} · 最终截止 ${formatMoment(task.dueAt)}`, isInTime ? outcome === 'GRACE' ? 'blue' : 'green' : 'red');
-    };
-    setDrilldown({
+      const key = dateKey(new Date(task.dueAt));
+      byDay.set(key, [...(byDay.get(key) ?? []), { title: task.title, detail: `超时 ${formatDuration(Math.abs(delta) / MINUTE_MS)} · 完成 ${formatMoment(task.completedAt)} · 截止 ${formatMoment(task.dueAt)}` }]);
+    });
+    setInTimePeriod(targetPeriod);
+    setDisciplineCalendar({
       index: '01',
       title: 'IN-TIME VERDICT',
       periodLabel: targetPeriod.label,
       metric: targetMetrics.inTimeRate === null ? '--' : `${targetMetrics.inTimeRate.toFixed(1)}%`,
-      metricLabel: `FINAL DEADLINE RATE · ${graceLabel} GRACE`,
-      formula: `${targetMetrics.inTimeCount} IN TIME ÷ ${targetMetrics.inTimeSample} DEADLINE CLEARS · GRACE ${graceLabel}`,
+      metricLabel: `FINAL DEADLINE RATE · ${selectedGraceLabel} GRACE`,
+      formula: `${targetMetrics.inTimeCount} IN TIME ÷ ${targetMetrics.inTimeSample} DEADLINE CLEARS · GRACE ${selectedGraceLabel} · BY FINAL DEADLINE`,
       accent: 'yellow',
-      groups: [
-        { id: 'in-time', label: 'IN TIME / 准时完成', countLabel: `${inTime.length} MISSIONS`, items: inTime.map(deadlineItem) },
-        { id: 'late', label: 'OUT OF TIME / 超时完成', countLabel: `${late.length} MISSIONS`, items: late.map(deadlineItem) },
-      ],
+      scale, dayActionLabel: '打开 CALENDAR 当天 DAILY FLOW', panels: disciplinePanels(targetPeriod, byDay, 'late'),
     });
   };
   const openDeadlineDrilldown = (targetPeriod: CampaignPeriod) => {
-    const mustTasks = tasks.filter((task) => task.priority === 'must' && taskBelongsToPeriod(task, targetPeriod));
-    const periodEvents = deadlineEvents.filter((event) => event.priorityAtChange === 'must' && isDeadlineExtension(event) && inPeriod(event.changedAt, targetPeriod));
-    const eventsByTask = new Map<string, DeadlineEvent[]>();
-    periodEvents.forEach((event) => eventsByTask.set(event.taskId, [...(eventsByTask.get(event.taskId) ?? []), event]));
-    const changed = mustTasks.filter((task) => eventsByTask.has(task.id));
-    const unchanged = mustTasks.filter((task) => !eventsByTask.has(task.id));
+    setInTimePeriod(null);
+    const revisionEvents = deadlineEvents.filter((event) => event.priorityAtChange === 'must' && isDeadlineExtension(event));
     const targetMetrics = periodMetrics(targetPeriod, tasks, deadlineEvents, taskDeletionEvents, sleepRecords, now, graceMinutes);
-    const changedItem = (task: DashboardTask) => {
-      const events = eventsByTask.get(task.id) ?? [];
-      const history = events.sort((a, b) => +new Date(a.changedAt) - +new Date(b.changedAt)).map((event) => `${formatMoment(event.changedAt)}｜${formatMoment(event.oldDueAt)} → ${formatMoment(event.newDueAt)}`).join(' · ');
-      return makeTaskItem(task, `${events.length} CHANGE${events.length === 1 ? '' : 'S'}`, history, 'orange');
-    };
-    setDrilldown({
+    const byDay = new Map<string, { title: string; detail: string }[]>();
+    revisionEvents.forEach((event) => {
+      const key = dateKey(new Date(event.changedAt));
+      byDay.set(key, [...(byDay.get(key) ?? []), { title: tasks.find((task) => task.id === event.taskId)?.title ?? '已删除任务', detail: `${formatMoment(event.changedAt)} · ${formatMoment(event.oldDueAt)} → ${formatMoment(event.newDueAt)}` }]);
+    });
+    setDisciplineCalendar({
       index: '02',
       title: 'DEADLINE REVISION LOG',
       periodLabel: targetPeriod.label,
@@ -795,10 +830,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       metricLabel: 'APPROVED CHANGE RATE',
       formula: `${targetMetrics.changedMustCount} CHANGED MUST ÷ ${targetMetrics.mustCount} MUST MISSIONS`,
       accent: 'orange',
-      groups: [
-        { id: 'changed', label: 'REVISED / 已变更', countLabel: `${changed.length} MISSIONS · ${periodEvents.length} EVENTS`, items: changed.map(changedItem) },
-        { id: 'unchanged', label: 'UNCHANGED / 未变更', countLabel: `${unchanged.length} MISSIONS`, items: unchanged.map((task) => makeTaskItem(task, 'LOCKED', `最终截止 ${formatMoment(task.dueAt)}`, 'muted')) },
-      ],
+      scale, dayActionLabel: '打开 CALENDAR 当天 DAILY FLOW', panels: disciplinePanels(targetPeriod, byDay, 'revision'),
     });
   };
   const openLoadDrilldown = (bucket: typeof loadBuckets[number]) => {
@@ -1040,7 +1072,8 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
         <button type="button" onClick={() => onNavigate('sleep')}><span>03</span><div><strong>NIGHT LOG</strong><small>查看完整睡眠节奏</small></div><i>☾</i></button>
         <button type="button" onClick={() => onNavigate('calendar')}><span>04</span><div><strong>CALENDAR</strong><small>进入月度行动地图</small></div><i>◆</i></button>
       </nav>
-    {overviewCalendarData && <DashboardCalendarDrilldown data={overviewCalendarData} onClose={() => setOverviewDrilldown(null)} onDaySelect={(dayKey) => { setOverviewDrilldown(null); if (overviewDrilldown === 'cancelled') onOpenCancellationLog(); else onOpenCalendarDay(dayKey); }} />}
+    {overviewCalendarData && <DashboardCalendarDrilldown data={overviewCalendarData} onClose={() => setOverviewDrilldown(null)} onDaySelect={(dayKey) => { setOverviewDrilldown(null); if (overviewDrilldown === 'cancelled') onOpenCancellationLog(dayKey); else onOpenCalendarDay(dayKey); }} />}
+    {disciplineCalendar && <DashboardCalendarDrilldown data={disciplineCalendar} graceFilter={inTimePeriod ? { value: graceMinutes, onChange: (value) => { setGraceMinutes(value); openInTimeDrilldown(inTimePeriod, value); } } : undefined} onClose={() => { setDisciplineCalendar(null); setInTimePeriod(null); }} onDaySelect={(dayKey) => { setDisciplineCalendar(null); setInTimePeriod(null); onOpenCalendarDay(dayKey); }} />}
     {drilldown && <DashboardDrilldown data={drilldown} onClose={() => setDrilldown(null)} />}
   </section>;
 }
