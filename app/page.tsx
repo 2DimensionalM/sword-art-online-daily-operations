@@ -93,7 +93,7 @@ const PENDING_SORT_SESSION_KEY = 'sao-planner-pending-sort-v1';
 const BOARD_DENSITY_SESSION_KEY = 'sao-planner-board-density-v1';
 const DASHBOARD_SCALE_SESSION_KEY = 'sao-dashboard-campaign-scale-v1';
 const DASHBOARD_PERIOD_SESSION_KEY = 'sao-dashboard-campaign-period-v1';
-const SLEEP_STANDARD_LIMIT = 9;
+const SLEEP_STANDARD_LIMIT = 8;
 const VISIBLE_LIMIT: Record<BoardDensity, Record<Status, number>> = {
   standard: { pending: 5, inProgress: 5, completed: 5 },
   compact: { pending: 9, inProgress: 9, completed: 9 },
@@ -2145,7 +2145,7 @@ export default function Home() {
         </div>
       </header>
       <div className="sleep-rhythm-workbench">
-        <section className={`sleep-rhythm-map is-${sleepDisplayMode}`} aria-label="全量睡眠时段分布" style={sleepDistributionStyle}>
+        <section className={`sleep-rhythm-map is-${sleepDisplayMode}${sleepDisplayMode === 'standard' && sleepStandardExpanded ? ' is-expanded' : ''}`} aria-label="全量睡眠时段分布" style={sleepDistributionStyle}>
           <header><div><span>ARCHIVE VIEW / 全量记录</span><h3>SLEEP DISTRIBUTION</h3></div><div className="sleep-rhythm-map-controls"><p>{sleepTimelineRecords.length} RECORDS</p><div className="sleep-display-switch" aria-label="睡眠分布显示模式"><button type="button" className={sleepDisplayMode === 'standard' ? 'active' : ''} aria-pressed={sleepDisplayMode === 'standard'} onClick={() => setSleepDisplayMode('standard')}><i>▤</i><span>STANDARD</span></button><button type="button" className={sleepDisplayMode === 'compact' ? 'active' : ''} aria-pressed={sleepDisplayMode === 'compact'} onClick={() => setSleepDisplayMode('compact')}><i>▥</i><span>COMPACT</span></button></div></div></header>
           <div className="sleep-rhythm-legend"><span><i /> SLEEP WINDOW</span><span className="sleep-mean-key mean-sleep"><b /> AVG SLEEP <strong>{formatClockMinutes(sleepDistributionAverage.sleep)}</strong></span><span className="sleep-mean-key mean-wake"><b /> AVG WAKE <strong>{formatClockMinutes(sleepDistributionAverage.wake)}</strong></span><small>FULL ARCHIVE</small></div>
           <div className="sleep-rhythm-axis" aria-hidden="true"><strong>00</strong><span>03</span><span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span></div>
