@@ -271,7 +271,8 @@ button { color:inherit; }
 .archive-table tbody tr { cursor:pointer; transition:.12s; }
 .archive-table tbody tr:nth-child(even) { background:rgba(247,226,27,.09); }
 .archive-table tbody tr:hover { background:#fff49b; transform:translateX(2px); }
-.archive-table td:nth-child(2) { min-width:230px; white-space:normal; }
+.archive-table td:nth-child(2) { width:260px; max-width:320px; overflow:hidden; white-space:nowrap; }
+.archive-table td:nth-child(2) strong { display:inline-block; max-width:calc(100% - 28px); overflow:hidden; text-overflow:ellipsis; vertical-align:middle; white-space:nowrap; }
 .table-index { font-family:monospace; font-weight:1000; }
 .table-repeat { display:inline-grid; place-items:center; margin-left:7px; width:17px; height:17px; color:white; background:var(--ink); border-radius:50%; }
 .status-chip,.priority-chip { display:inline-block; padding:4px 7px; border:2px solid var(--ink); font-size:8px; font-weight:1000; }
@@ -673,7 +674,7 @@ html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhyth
 .cancellation-log-date-filter { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px; padding:9px 12px; color:var(--ink); background:var(--yellow); border:2px solid var(--ink); font-size:11px; }
 .cancellation-log-date-filter button { padding:6px 9px; color:white; background:var(--ink); border:0; font-weight:900; cursor:pointer; }
 .cancellation-log-date-filter button:hover,.cancellation-log-date-filter button:focus-visible { color:var(--ink); background:white; outline:2px solid var(--ink); }
-.archive-table { min-width:1380px; }.archive-table td { font-variant-east-asian:proportional-width; }.archive-table .description-data { min-width:260px; max-width:360px; color:#57534e; font-family:var(--font-body); font-weight:500; letter-spacing:0; line-height:1.6; white-space:normal; }.theme-night .archive-table .description-data { color:var(--night-muted); }.theme-night .profile-console input { color:var(--night-text); background:var(--night-control); border-color:var(--night-line); }
+.archive-table { min-width:1380px; }.archive-table td { font-variant-east-asian:proportional-width; }.archive-table tbody td { height:52px; vertical-align:middle; }.archive-table .description-data { width:320px; max-width:360px; overflow:hidden; color:#57534e; font-family:var(--font-body); font-weight:500; letter-spacing:0; line-height:1.6; text-overflow:ellipsis; white-space:nowrap; }.theme-night .archive-table .description-data { color:var(--night-muted); }.theme-night .profile-console input { color:var(--night-text); background:var(--night-control); border-color:var(--night-line); }
 
 /* Status chips reuse the archive dossier block, with the board's yellow, blue, and green state signals. */
 .archive-table .status-chip { --status-rail:#858780; position:relative; padding-left:18px; color:var(--ink); background:var(--paper); border-left:10px solid var(--status-rail); }
