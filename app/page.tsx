@@ -6,6 +6,7 @@ import { GoalRadar, SignalRoom, SignalTicker, useSignals } from './components/Si
 import { BrandLockup } from './components/BrandLockup';
 import { LifeDashboard, type DashboardCampaignScale, type DashboardTask } from './components/LifeDashboard';
 import { loadDeadlineEvents, type DeadlineEvent } from './lib/deadline-store';
+import { belowTaskIdsAfterReorder, belowTaskIdsFromDividerIndex, pendingDividerBelowTaskIdsFromRaw, releasePendingDividerTask, resolvePendingDividerIndex } from './lib/pending-divider';
 import { loadPlannerState, savePlannerState } from './lib/planner-store';
 import { createSleepRecord, loadSleepRecords, removeSleepRecord, type SleepRecord } from './lib/sleep-store';
 import { loadTaskDeletionEvents, recordTaskDeletionEvent, removeTaskDeletionEvent, type TaskDeletionEvent } from './lib/task-deletion-store';
@@ -71,7 +72,7 @@ type PlannerSettings = {
   defaultLocation: string;
   recurrenceEnabled: boolean;
   recurrenceOrder: string[];
-  pendingDividerIndex: number | null;
+  pendingDividerBelowTaskIds: string[] | null;
   pendingDividerCollapsed: boolean;
 };
 
@@ -82,7 +83,7 @@ const BASE_TYPES: PlannerSettings['taskTypes'] = [
   ...['🏃‍➡️ 运动', '🧘 冥想', '🎈 聚会', '🎮 娱乐', '🛏️ 休息'].map((value) => ({ value, color: 'yellow' as const })),
 ];
 const BASE_LOCATIONS = ['🏠 家', '🏢 公司', '🏫 学校', '💻 线上', '🏃 户外', '✈️ 机场', '🚉 车站', '🛒 超市', '📍 其他'].map((value) => ({ value }));
-const DEFAULT_SETTINGS: PlannerSettings = { username: '2DimensionalM', taskTypes: BASE_TYPES, locations: BASE_LOCATIONS, defaultTaskType: '🧬 个人', defaultLocation: '🏠 家', recurrenceEnabled: true, recurrenceOrder: [], pendingDividerIndex: null, pendingDividerCollapsed: false };
+const DEFAULT_SETTINGS: PlannerSettings = { username: '2DimensionalM', taskTypes: BASE_TYPES, locations: BASE_LOCATIONS, defaultTaskType: '🧬 个人', defaultLocation: '🏠 家', recurrenceEnabled: true, recurrenceOrder: [], pendingDividerBelowTaskIds: null, pendingDividerCollapsed: false };
 const CANCELLATION_LOG_LIMIT = 6;
 const RETIRED_ROUTINE_TYPE = '⏰ 作息';
 const TASK_KEY = 'sao-planner-tasks-v2';
@@ -114,10 +115,14 @@ function sortedTaskTypes(taskTypes: PlannerSettings['taskTypes']) {
   return [...taskTypes].sort((a, b) => TYPE_COLOR_ORDER[a.color] - TYPE_COLOR_ORDER[b.color]);
 }
 
-function normalizeSettings(raw: Partial<PlannerSettings> | null | undefined): PlannerSettings {
+function pendingMissionIds(tasks: Task[]) {
+  return sortTasks(tasks.filter((task) => !task.isRecurrenceTemplate && task.status === 'pending'), 'pending').map((task) => task.id);
+}
+
+function normalizeSettings(raw: (Partial<PlannerSettings> & { pendingDividerIndex?: unknown }) | null | undefined, tasks: Task[]): PlannerSettings {
   const merged = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
   const taskTypes = sortedTaskTypes((Array.isArray(merged.taskTypes) ? merged.taskTypes : BASE_TYPES).filter((type) => type.value !== RETIRED_ROUTINE_TYPE));
-  const pendingDividerIndex = typeof merged.pendingDividerIndex === 'number' && Number.isInteger(merged.pendingDividerIndex) && merged.pendingDividerIndex >= 0 ? merged.pendingDividerIndex : null;
+  const pendingDividerBelowTaskIds = pendingDividerBelowTaskIdsFromRaw(raw, pendingMissionIds(tasks));
   return {
     username: typeof merged.username === 'string' && merged.username.trim() ? merged.username.trim() : DEFAULT_SETTINGS.username,
     taskTypes,
@@ -126,8 +131,8 @@ function normalizeSettings(raw: Partial<PlannerSettings> | null | undefined): Pl
     defaultLocation: typeof merged.defaultLocation === 'string' ? merged.defaultLocation : DEFAULT_SETTINGS.defaultLocation,
     recurrenceEnabled: merged.recurrenceEnabled !== false,
     recurrenceOrder: Array.isArray(merged.recurrenceOrder) ? [...new Set(merged.recurrenceOrder.filter((seriesId): seriesId is string => typeof seriesId === 'string' && seriesId.length > 0))] : [],
-    pendingDividerIndex,
-    pendingDividerCollapsed: pendingDividerIndex !== null && merged.pendingDividerCollapsed === true,
+    pendingDividerBelowTaskIds,
+    pendingDividerCollapsed: pendingDividerBelowTaskIds !== null && merged.pendingDividerCollapsed === true,
   };
 }
 
@@ -1475,9 +1480,10 @@ export default function Home() {
           const savedTasks = localStorage.getItem(TASK_KEY) || localStorage.getItem(LEGACY_TASK_KEY);
           const savedSettings = localStorage.getItem(SETTINGS_KEY);
           const savedTheme = localStorage.getItem(THEME_KEY);
-          const importedSettings = normalizeSettings(savedSettings ? JSON.parse(savedSettings) : null);
+          const storedTasks = savedTasks ? normalizeTasks(JSON.parse(savedTasks)) : seedTasks();
+          const importedSettings = normalizeSettings(savedSettings ? JSON.parse(savedSettings) : null, storedTasks);
           const importedTheme = savedTheme === 'night' ? 'night' : 'day';
-          const importedTasks = processRecurring(savedTasks ? normalizeTasks(JSON.parse(savedTasks)) : seedTasks(), importedSettings.recurrenceEnabled, importedSettings.recurrenceOrder);
+          const importedTasks = processRecurring(storedTasks, importedSettings.recurrenceEnabled, importedSettings.recurrenceOrder);
           const imported = await savePlannerState<Task, PlannerSettings>({
             expectedRevision: databaseState.revision,
             tasks: importedTasks,
@@ -1493,8 +1499,8 @@ export default function Home() {
         }
 
         if (cancelled) return;
-        const normalizedSettings = normalizeSettings(databaseState.settings);
         const normalizedTasks = normalizeTasks(databaseState.tasks);
+        const normalizedSettings = normalizeSettings(databaseState.settings, normalizedTasks);
         const recurringTasks = processRecurring(normalizedTasks, normalizedSettings.recurrenceEnabled, normalizedSettings.recurrenceOrder);
         databaseRevision.current = databaseState.revision;
         lastPersistedSnapshot.current = JSON.stringify({
@@ -1565,8 +1571,8 @@ export default function Home() {
           });
           databaseRevision.current = result.state.revision;
           if (result.conflicted) {
-            const currentSettings = normalizeSettings(result.state.settings);
             const currentTasks = normalizeTasks(result.state.tasks);
+            const currentSettings = normalizeSettings(result.state.settings, currentTasks);
             lastPersistedSnapshot.current = JSON.stringify({ tasks: currentTasks, settings: currentSettings, theme: result.state.theme });
             setTasks(currentTasks);
             setSettings(currentSettings);
@@ -1637,7 +1643,7 @@ export default function Home() {
     result[board.id] = board.id === 'pending' ? sortPendingTasks(boardTasks, pendingSort) : sortTasks(boardTasks, board.id);
     return result;
   }, {} as Record<Status, Task[]>), [missionTasks, pendingSort, showCompletedHistory]);
-  const pendingDividerIndex = settings.pendingDividerIndex === null ? null : Math.min(settings.pendingDividerIndex, grouped.pending.length);
+  const pendingDividerIndex = resolvePendingDividerIndex(grouped.pending.map((task) => task.id), settings.pendingDividerBelowTaskIds);
 
   const activeRecurringTasks = useMemo(() => {
     const recurringTasks = tasks.filter((task) => task.isRecurrenceTemplate && task.recurrence !== 'none');
@@ -1728,6 +1734,12 @@ export default function Home() {
       const ranks = new Map(order.map((item, index) => [item.id, index]));
       return current.map((item) => item.id === id ? { ...transitioned, manualOrder: 0 } : item.status === status ? { ...item, manualOrder: ranks.get(item.id) ?? null } : item);
     });
+    if (status === 'pending') {
+      setSettings((current) => {
+        const pendingDividerBelowTaskIds = releasePendingDividerTask(current.pendingDividerBelowTaskIds, id);
+        return pendingDividerBelowTaskIds === current.pendingDividerBelowTaskIds ? current : { ...current, pendingDividerBelowTaskIds };
+      });
+    }
     setLandedId(id);
     setImpact(status === 'completed' ? { title: 'MISSION CLEAR!', subtitle: '任务完成 · 战果已记录', tier: 'action' } : status === 'inProgress' ? { title: 'MISSION START!', subtitle: '开始时间已自动记录', tier: 'action' } : { title: 'MISSION RESET', subtitle: '任务已返回等待区', tier: 'action' });
     setDropTarget('');
@@ -1736,16 +1748,22 @@ export default function Home() {
 
   const reorderWithin = (status: Status, draggedId: string, targetId: string) => {
     if (status === 'completed' || (status === 'pending' && pendingSort !== 'custom') || draggedId === targetId) return;
-    setTasks((current) => {
-      const ordered = sortTasks(current.filter((task) => !task.isRecurrenceTemplate && task.status === status), status);
-      const from = ordered.findIndex((task) => task.id === draggedId);
-      const to = ordered.findIndex((task) => task.id === targetId);
-      if (from < 0 || to < 0) return current;
-      const [moved] = ordered.splice(from, 1);
-      ordered.splice(to, 0, moved);
-      const ranks = new Map(ordered.map((task, index) => [task.id, index]));
-      return current.map((task) => task.status === status ? { ...task, manualOrder: ranks.get(task.id) ?? null } : task);
-    });
+    const ordered = sortTasks(tasks.filter((task) => !task.isRecurrenceTemplate && task.status === status), status);
+    const beforeIds = ordered.map((task) => task.id);
+    const from = ordered.findIndex((task) => task.id === draggedId);
+    const to = ordered.findIndex((task) => task.id === targetId);
+    if (from < 0 || to < 0) return;
+    const [moved] = ordered.splice(from, 1);
+    ordered.splice(to, 0, moved);
+    const afterIds = ordered.map((task) => task.id);
+    const ranks = new Map(afterIds.map((id, index) => [id, index]));
+    setTasks((current) => current.map((task) => task.status === status ? { ...task, manualOrder: ranks.get(task.id) ?? null } : task));
+    if (status === 'pending') {
+      setSettings((current) => {
+        if (current.pendingDividerBelowTaskIds === null) return current;
+        return { ...current, pendingDividerBelowTaskIds: belowTaskIdsAfterReorder(beforeIds, current.pendingDividerBelowTaskIds, afterIds, draggedId) };
+      });
+    }
     setLandedId(draggedId);
     setImpact({ title: 'ORDER LOCKED!', subtitle: '自定义任务顺序已保存' });
     setDraggingId('');
@@ -1756,14 +1774,14 @@ export default function Home() {
     const clampedIndex = Math.max(0, Math.min(index, grouped.pending.length));
     const ranks = new Map(grouped.pending.map((task, taskIndex) => [task.id, taskIndex]));
     setTasks((current) => current.map((task) => !task.isRecurrenceTemplate && task.status === 'pending' ? { ...task, manualOrder: ranks.get(task.id) ?? null } : task));
-    setSettings((current) => ({ ...current, pendingDividerIndex: clampedIndex, pendingDividerCollapsed: false }));
+    setSettings((current) => ({ ...current, pendingDividerBelowTaskIds: belowTaskIdsFromDividerIndex(grouped.pending.map((task) => task.id), clampedIndex), pendingDividerCollapsed: false }));
     setPendingSort('custom');
     setPendingSortOpen(false);
     setToast('已设置任务显示位置');
   };
 
   const movePendingDivider = (index: number) => {
-    setSettings((current) => ({ ...current, pendingDividerIndex: Math.max(0, Math.min(index, grouped.pending.length)) }));
+    setSettings((current) => ({ ...current, pendingDividerBelowTaskIds: belowTaskIdsFromDividerIndex(grouped.pending.map((task) => task.id), index) }));
     setDraggingPendingDivider(false);
     setPendingDividerDropIndex(null);
     setDropTarget('');
@@ -1771,7 +1789,7 @@ export default function Home() {
   };
 
   const removePendingDivider = () => {
-    setSettings((current) => ({ ...current, pendingDividerIndex: null, pendingDividerCollapsed: false }));
+    setSettings((current) => ({ ...current, pendingDividerBelowTaskIds: null, pendingDividerCollapsed: false }));
     setDraggingPendingDivider(false);
     setPendingDividerDropIndex(null);
     setDropTarget('');
@@ -1783,20 +1801,23 @@ export default function Home() {
     if (pendingDividerIndex === null) return;
     const source = tasks.find((task) => task.id === taskId);
     if (!source || source.isRecurrenceTemplate) return;
+    const belowTaskIds = settings.pendingDividerBelowTaskIds ?? [];
     const ordered = [...grouped.pending];
     const from = ordered.findIndex((task) => task.id === taskId);
     const moving = from >= 0 ? ordered.splice(from, 1)[0] : transitionTask(source, 'pending');
-    const boundaryAfterRemoval = Math.max(0, pendingDividerIndex - (from >= 0 && from < pendingDividerIndex ? 1 : 0));
-    const insertionIndex = Math.min(boundaryAfterRemoval, ordered.length);
+    const below = new Set(belowTaskIds);
+    below.delete(taskId);
+    const anchorIndex = ordered.findIndex((task) => below.has(task.id));
+    const insertionIndex = anchorIndex < 0 ? ordered.length : anchorIndex;
     ordered.splice(insertionIndex, 0, moving);
-    const nextDividerIndex = side === 'above' ? insertionIndex + 1 : insertionIndex;
+    const nextBelowTaskIds = ordered.slice(side === 'above' ? insertionIndex + 1 : insertionIndex).map((task) => task.id);
     const ranks = new Map(ordered.map((task, index) => [task.id, index]));
     setTasks((current) => current.map((task) => {
       if (task.id === taskId) return { ...moving, manualOrder: ranks.get(taskId) ?? 0 };
       if (!task.isRecurrenceTemplate && task.status === 'pending') return { ...task, manualOrder: ranks.get(task.id) ?? null };
       return task;
     }));
-    setSettings((current) => ({ ...current, pendingDividerIndex: nextDividerIndex }));
+    setSettings((current) => ({ ...current, pendingDividerBelowTaskIds: nextBelowTaskIds }));
     setLandedId(taskId);
     setDraggingId('');
     setPendingDividerDropIndex(null);
@@ -1863,6 +1884,13 @@ export default function Home() {
       if (saved.isRecurrenceTemplate && saved.recurrence === 'none') nextTasks = nextTasks.map((task) => task.seriesId === saved.seriesId && !task.isRecurrenceTemplate ? { ...task, recurrence: 'none', recurrenceStartTime: '', seriesHead: false } : task);
       return saved.isRecurrenceTemplate ? processRecurring(nextTasks, settings.recurrenceEnabled, settings.recurrenceOrder) : ensureRecurrenceTemplates(nextTasks);
     });
+    const previous = tasks.find((task) => task.id === draft.id);
+    if (draft.status === 'pending' && !draft.isRecurrenceTemplate && (!previous || previous.status !== 'pending')) {
+      setSettings((current) => {
+        const pendingDividerBelowTaskIds = releasePendingDividerTask(current.pendingDividerBelowTaskIds, draft.id);
+        return pendingDividerBelowTaskIds === current.pendingDividerBelowTaskIds ? current : { ...current, pendingDividerBelowTaskIds };
+      });
+    }
     if (draft.isRecurrenceTemplate && draft.recurrence !== 'none' && !settings.recurrenceOrder.includes(draft.seriesId || draft.id)) {
       setSettings((current) => ({ ...current, recurrenceOrder: [...current.recurrenceOrder, draft.seriesId || draft.id] }));
     }
