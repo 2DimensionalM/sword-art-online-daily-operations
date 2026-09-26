@@ -709,6 +709,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       scale,
       panels,
       trend,
+      itemLedger: overviewDrilldown === 'cancelled' ? { title: 'CANCELLATION RECORDS / 取消条目', emptyLabel: '当前时间尺度内没有任务取消记录。' } : undefined,
     } satisfies OverviewCalendarDrilldownData;
   })();
   const sleepRhythm = useMemo(() => {
@@ -811,6 +812,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       formula: `${targetMetrics.inTimeCount} IN TIME ÷ ${targetMetrics.inTimeSample} DEADLINE CLEARS · GRACE ${selectedGraceLabel} · BY FINAL DEADLINE`,
       accent: 'yellow',
       scale, dayActionLabel: '打开 CALENDAR 当天 DAILY FLOW', panels: disciplinePanels(targetPeriod, byDay, 'late'),
+      itemLedger: { title: 'LATE COMPLETIONS / 超时完成条目', emptyLabel: '当前时间尺度内没有超时完成条目。' },
     });
   };
   const openDeadlineDrilldown = (targetPeriod: CampaignPeriod) => {
@@ -831,6 +833,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       formula: `${targetMetrics.changedMustCount} CHANGED MUST ÷ ${targetMetrics.mustCount} MUST MISSIONS`,
       accent: 'orange',
       scale, dayActionLabel: '打开 CALENDAR 当天 DAILY FLOW', panels: disciplinePanels(targetPeriod, byDay, 'revision'),
+      itemLedger: { title: 'DEADLINE REVISIONS / 截止变更条目', emptyLabel: '当前时间尺度内没有 Must 截止变更条目。' },
     });
   };
   const openLoadDrilldown = (bucket: typeof loadBuckets[number]) => {

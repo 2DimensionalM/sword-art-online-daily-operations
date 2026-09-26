@@ -46,6 +46,10 @@ export type OverviewCalendarDrilldownData = {
   scale: DashboardCampaignScale;
   panels: OverviewCalendarPanel[];
   trend?: OverviewCalendarTrend;
+  itemLedger?: {
+    title: string;
+    emptyLabel: string;
+  };
 };
 
 const WEEKDAYS = ['MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT', 'SUN'];
@@ -81,6 +85,7 @@ export function DashboardCalendarDrilldown({ data, onClose, onDaySelect, graceFi
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const scrollRegionRef = useRef<HTMLDivElement>(null);
+  const itemLedgerScrollRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const tooltipHideTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const graceFilterRef = useRef<HTMLDivElement>(null);
@@ -107,8 +112,27 @@ export function DashboardCalendarDrilldown({ data, onClose, onDaySelect, graceFi
     setDayTooltip({ day, left: Math.max(12, Math.min(window.innerWidth - width - 12, rect.left + rect.width / 2 - width / 2)),
       ...(showAbove ? { bottom: window.innerHeight - rect.top + 9 } : { top: rect.bottom + 9 }), maxHeight });
   };
+  const highlightDayFromCalendar = (dayId: string) => {
+    setHighlightedDayId(dayId);
+    const scrollRegion = itemLedgerScrollRef.current;
+    const target = Array.from(scrollRegion?.querySelectorAll<HTMLElement>('[data-ledger-day-id]') ?? []).find((element) => element.dataset.ledgerDayId === dayId);
+    if (!scrollRegion || !target) return;
+    const regionRect = scrollRegion.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
+    if (targetRect.top >= regionRect.top && targetRect.bottom <= regionRect.bottom) return;
+    scrollRegion.scrollTo({
+      top: scrollRegion.scrollTop + targetRect.top - regionRect.top - (regionRect.height - targetRect.height) / 2,
+      behavior: 'smooth',
+    });
+  };
   const trend = data.trend ? trendGeometry(data.trend) : null;
   const highlightedPoint = trend?.points.find((point) => point.id === highlightedDayId && point.y !== null) ?? null;
+  const ledgerDays = data.itemLedger
+    ? data.panels.flatMap((panel) => panel.cells)
+      .filter((day): day is OverviewCalendarDay => Boolean(day?.selected && day.items?.length))
+      .filter((day, index, days) => days.findIndex((candidate) => candidate.id === day.id) === index)
+      .sort((a, b) => a.id.localeCompare(b.id))
+    : [];
 
   useEffect(() => {
     const previousOverflow = document.body.style.overflow;
@@ -190,20 +214,34 @@ export function DashboardCalendarDrilldown({ data, onClose, onDaySelect, graceFi
           </div>
         </section>}
         <section className="overview-calendar-archive" aria-label={`${data.title}日历`}>
-          <header><span>CALENDAR GRID / 每日记录</span><strong>{data.trend ? 'CALENDAR + TREND' : 'CALENDAR MARKERS'}</strong></header>
-          <div className="overview-calendar-panels">
-            {data.panels.map((panel) => <section key={panel.id} className="overview-calendar-panel">
-              <header><strong>{panel.label}</strong><span>STANDARD MONTH</span></header>
-              <div className="overview-weekday-row">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
-              <div className="overview-calendar-grid">{panel.cells.map((day, index) => day ? <button type="button" key={`${panel.id}-${day.id}`} data-day-id={day.id} className={`overview-calendar-day ${day.future ? 'is-future' : ''} ${day.selected ? 'is-selected' : ''} ${day.outsideMonth ? 'is-outside-month' : ''} ${day.value || day.marker ? 'has-signal' : ''} ${day.selected && highlightedDayId === day.id ? 'is-linked' : ''}`} style={{ '--day-intensity': day.intensity } as CSSProperties} aria-label={`${day.detail}${day.items?.length ? `，${day.items.map((item) => `${item.title} ${item.detail}`).join('；')}` : ''}，${data.dayActionLabel}`} onClick={() => onDaySelect(day.id)} onMouseEnter={(event) => { if (day.selected) setHighlightedDayId(day.id); showDayTooltip(day, event.currentTarget); }} onMouseLeave={() => { setHighlightedDayId((current) => current === day.id ? null : current); hideTooltipSoon(); }} onFocus={(event) => { if (day.selected) setHighlightedDayId(day.id); showDayTooltip(day, event.currentTarget); }} onBlur={() => { setHighlightedDayId((current) => current === day.id ? null : current); hideTooltipSoon(); }}>
-                <time dateTime={day.id}>{String(day.day).padStart(2, '0')}</time>
-                {day.marker === 'pin' && <span className="calendar-pin" aria-hidden="true"><i /><b /></span>}
-                {day.marker === 'check' && <span className="calendar-check" aria-hidden="true">✓</span>}
-                {day.marker === 'cancel' && <span className="calendar-cancel" aria-hidden="true">×</span>}
-                {day.value && <strong>{day.value}<small>{day.unit}</small></strong>}
-                {day.markerCount && day.markerCount > 1 ? <em>×{day.markerCount}</em> : null}
-              </button> : <i className="calendar-void" aria-hidden="true" key={`void-${index}`} />)}</div>
-            </section>)}
+          <header><span>CALENDAR GRID / 每日记录</span><strong>{data.itemLedger ? 'CALENDAR + ITEM LEDGER' : data.trend ? 'CALENDAR + TREND' : 'CALENDAR MARKERS'}</strong></header>
+          <div className={`overview-calendar-workspace${data.itemLedger ? ' has-item-ledger' : ''}`}>
+            <div className="overview-calendar-panels">
+              {data.panels.map((panel) => <section key={panel.id} className="overview-calendar-panel">
+                <header><strong>{panel.label}</strong><span>STANDARD MONTH</span></header>
+                <div className="overview-weekday-row">{WEEKDAYS.map((day) => <span key={day}>{day}</span>)}</div>
+                <div className="overview-calendar-grid">{panel.cells.map((day, index) => day ? <button type="button" key={`${panel.id}-${day.id}`} data-day-id={day.id} className={`overview-calendar-day ${day.future ? 'is-future' : ''} ${day.selected ? 'is-selected' : ''} ${day.outsideMonth ? 'is-outside-month' : ''} ${day.value || day.marker ? 'has-signal' : ''} ${day.selected && highlightedDayId === day.id ? 'is-linked' : ''}`} style={{ '--day-intensity': day.intensity } as CSSProperties} aria-label={`${day.detail}${day.items?.length ? `，${day.items.map((item) => `${item.title} ${item.detail}`).join('；')}` : ''}，${data.dayActionLabel}`} onClick={() => onDaySelect(day.id)} onMouseEnter={(event) => { if (day.selected) highlightDayFromCalendar(day.id); showDayTooltip(day, event.currentTarget); }} onMouseLeave={() => { setHighlightedDayId((current) => current === day.id ? null : current); hideTooltipSoon(); }} onFocus={(event) => { if (day.selected) highlightDayFromCalendar(day.id); showDayTooltip(day, event.currentTarget); }} onBlur={() => { setHighlightedDayId((current) => current === day.id ? null : current); hideTooltipSoon(); }}>
+                  <time dateTime={day.id}>{String(day.day).padStart(2, '0')}</time>
+                  {day.marker === 'pin' && <span className="calendar-pin" aria-hidden="true"><i /><b /></span>}
+                  {day.marker === 'check' && <span className="calendar-check" aria-hidden="true">✓</span>}
+                  {day.marker === 'cancel' && <span className="calendar-cancel" aria-hidden="true">×</span>}
+                  {day.value && <strong>{day.value}<small>{day.unit}</small></strong>}
+                  {day.markerCount && day.markerCount > 1 ? <em>×{day.markerCount}</em> : null}
+                </button> : <i className="calendar-void" aria-hidden="true" key={`void-${index}`} />)}</div>
+              </section>)}
+            </div>
+            {data.itemLedger && <aside className="overview-item-ledger" aria-label={data.itemLedger.title}>
+              <header><span>ITEM LEDGER / 条目</span><strong>{data.itemLedger.title}</strong><small>{ledgerDays.reduce((count, day) => count + (day.items?.length ?? 0), 0)} RECORDS</small></header>
+              <div ref={itemLedgerScrollRef}>
+                {ledgerDays.map((day) => <section key={day.id} data-ledger-day-id={day.id} className={highlightedDayId === day.id ? 'is-linked' : ''} onMouseEnter={() => setHighlightedDayId(day.id)} onMouseLeave={() => setHighlightedDayId((current) => current === day.id ? null : current)}>
+                  <header><time dateTime={day.id}>{day.id}</time><span>{day.items?.length} ITEMS</span></header>
+                  {day.items?.map((item, index) => <button type="button" key={`${day.id}-${item.title}-${index}`} onClick={() => onDaySelect(day.id)} onFocus={() => setHighlightedDayId(day.id)} onBlur={() => setHighlightedDayId((current) => current === day.id ? null : current)}>
+                    <i aria-hidden="true">{String(index + 1).padStart(2, '0')}</i><span><strong>{item.title}</strong><small>{item.detail}</small></span><b aria-hidden="true">↗</b>
+                  </button>)}
+                </section>)}
+                {!ledgerDays.length && <p className="overview-item-ledger-empty">{data.itemLedger.emptyLabel}</p>}
+              </div>
+            </aside>}
           </div>
         </section>
       </div>
