@@ -1207,6 +1207,7 @@ function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen,
 }) {
   const countdowns = countdownSignals(task, now);
   const countdown = countdowns.find((signal) => signal.kind === 'start') ?? countdowns.sort(compareCountdownSignals)[0];
+  const completedLate = task.status === 'completed' && Boolean(task.completedAt && task.dueAt && +new Date(task.completedAt) > +new Date(task.dueAt));
   return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''}`}
     draggable tabIndex={0} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop} onClick={onOpen}
     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}>
@@ -1222,8 +1223,10 @@ function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen,
     <div className="card-meta"><span>{task.taskType}</span>
       {task.status === 'pending' && <span className={task.dueAt && +new Date(task.dueAt) < +now ? 'is-overdue' : ''}>⌁ {task.dueAt ? formatTime(task.dueAt) : 'NO DEADLINE'}</span>}
       {task.status === 'inProgress' && <span>▶ {formatTime(task.startedAt)}</span>}
-      {task.status === 'completed' && <span>✓ {formatTime(task.completedAt)}</span>}
-    </div><div className="compact-card-meta"><span>{task.taskType}</span><span className={task.dueAt && +new Date(task.dueAt) < +now ? 'is-overdue' : ''}>⌁ {task.dueAt ? formatTime(task.dueAt) : 'NO DEADLINE'}</span></div><span className="drag-hint" aria-hidden="true">⋮⋮</span>
+      {task.status === 'completed' && <span className={completedLate ? 'is-overdue' : ''}>✓ {formatTime(task.completedAt)}</span>}
+    </div><div className="compact-card-meta"><span>{task.taskType}</span>{task.status === 'completed'
+      ? <span className={completedLate ? 'is-overdue' : ''}>✓ {formatTime(task.completedAt)}</span>
+      : <span className={task.dueAt && +new Date(task.dueAt) < +now ? 'is-overdue' : ''}>⌁ {task.dueAt ? formatTime(task.dueAt) : 'NO DEADLINE'}</span>}</div><span className="drag-hint" aria-hidden="true">⋮⋮</span>
   </article>;
 }
 
