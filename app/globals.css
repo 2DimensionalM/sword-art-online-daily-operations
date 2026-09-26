@@ -104,7 +104,28 @@ button { color:inherit; }
 .pending-sort-menu button.active i { color:var(--ink); }
 
 .task-stack { position:relative; z-index:0; min-height:240px; display:flex; flex-direction:column; gap:10px; padding:12px; }
+.task-stack.has-pending-divider-affordance { gap:0; }
+.task-stack.has-pending-divider-affordance > .task-card { margin-bottom:10px; }
+.pending-divider-insert { position:relative; z-index:5; width:100%; height:10px; min-height:10px; margin-top:-10px; padding:0; overflow:visible; background:transparent; border:0; cursor:crosshair; transition:height 120ms var(--ease-snap),min-height 120ms var(--ease-snap); }
+.pending-divider-insert > span { position:absolute; left:0; right:0; top:50%; height:1px; background:color-mix(in srgb,var(--ink) 62%,transparent); opacity:0; pointer-events:none; transform:scaleX(.68); transition:opacity 120ms ease,transform 120ms var(--ease-snap); }
+.pending-divider-insert:hover,.pending-divider-insert:focus-visible { height:20px; min-height:20px; outline:none; }
+.pending-divider-insert:hover > span,.pending-divider-insert:focus-visible > span { opacity:1; transform:scaleX(1); }
+.pending-divider { position:relative; z-index:4; height:22px; min-height:22px; display:flex; align-items:center; margin:0; padding:0; color:var(--ink); background:transparent; border:0; cursor:grab; outline:none; }
+.pending-divider::before { content:''; width:100%; height:3px; background:var(--ink); transition:height 100ms ease,background 100ms ease,transform 100ms ease; }
+.pending-divider.drop-above::before,.pending-divider.drop-below::before { height:4px; background:var(--yellow); box-shadow:0 0 0 1px var(--ink); }
+.pending-divider:active { cursor:grabbing; }
+.pending-divider:focus-visible::before { height:4px; background:var(--ink); }
+.pending-divider.is-dragging { opacity:.82; }
+.pending-divider.is-dragging::before { height:4px; background:var(--yellow); box-shadow:0 0 0 1px var(--ink); transform:scaleX(.96); }
+.pending-divider-handle { position:absolute; left:50%; top:50%; padding:2px 6px 3px; color:var(--paper); background:var(--ink); font:900 8px/1 var(--font-ui); letter-spacing:1px; opacity:0; pointer-events:none; transform:translate(-50%,-50%); transition:opacity 100ms ease; user-select:none; }
+.pending-divider > button { position:absolute; right:1px; top:50%; width:22px; height:22px; min-height:22px; display:grid; place-items:center; padding:0 0 2px; color:var(--ink); background:var(--yellow); border:2px solid var(--ink); box-shadow:2px 2px 0 var(--paper); font:1000 14px/1 var(--font-ui); cursor:pointer; opacity:0; pointer-events:none; transform:translateY(-50%) rotate(2deg); transition:opacity 100ms ease,background 100ms ease,color 100ms ease,transform 100ms ease; }
+.pending-divider:hover .pending-divider-handle,.pending-divider:focus-visible .pending-divider-handle,.pending-divider:focus-within .pending-divider-handle,.pending-divider:hover > button,.pending-divider:focus-within > button { opacity:1; }
+.pending-divider:hover > button,.pending-divider:focus-within > button { pointer-events:auto; }
+.pending-divider > button:hover,.pending-divider > button:focus-visible { color:var(--yellow); background:var(--ink); outline:2px solid var(--paper); outline-offset:1px; transform:translateY(-50%) rotate(-2deg) scale(1.06); }
 .task-card { --type:var(--purple); position:relative; height:152px; min-height:152px; display:flex; flex-direction:column; overflow:hidden; padding:13px 34px 11px 16px; background:white; border:2px solid var(--ink); box-shadow:3px 3px 0 var(--ink); cursor:grab; transition:transform .16s,box-shadow .16s,opacity .16s; }
+.pending-divider-drop-preview { position:absolute; z-index:20; left:0; right:0; height:5px; background:var(--yellow); border-top:1px solid var(--ink); border-bottom:1px solid var(--ink); pointer-events:none; }
+.pending-divider-drop-preview.is-before { top:0; }
+.pending-divider-drop-preview.is-after { bottom:0; }
 .task-card.has-countdown { height:152px; min-height:152px; }
 .task-card:hover,.task-card:focus-visible { outline:none; transform:translate(-2px,-2px) rotate(-.3deg); box-shadow:6px 6px 0 var(--ink); }
 .task-card:active { cursor:grabbing; transform:translate(1px,2px) rotate(-.3deg); box-shadow:1px 1px 0 var(--ink); }
@@ -974,6 +995,11 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 
 .pending-state-signal { display:none; }
 .board.is-compact .task-stack { min-height:160px; gap:9px; padding:10px; }
+.board.is-compact .task-stack.has-pending-divider-affordance { gap:0; }
+.board.is-compact .task-stack.has-pending-divider-affordance > .task-card { margin-bottom:9px; }
+.board.is-compact .pending-divider { height:18px; min-height:18px; }
+.board.is-compact .pending-divider-insert { height:9px; min-height:9px; margin-top:-9px; }
+.board.is-compact .pending-divider-insert:hover,.board.is-compact .pending-divider-insert:focus-visible { height:18px; min-height:18px; }
 .board.is-compact .task-card,.board.is-compact .task-card.has-countdown { height:82px; min-height:82px; padding:8px 43px 7px 14px; }
 .board.is-compact .task-card .card-stripe { width:7px; background:var(--type); }
 .compact-card-meta { display:none; }
@@ -1018,6 +1044,16 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .theme-night .column-sort-trigger span { color:#675a17; }
 .theme-night .column-sort-trigger strong,.theme-night .column-sort-trigger i { color:#080806; }
 .theme-night .column-sort-trigger:hover,.theme-night .column-sort-trigger[aria-expanded="true"] { background:var(--yellow); border-color:#080806; box-shadow:5px 5px 0 var(--night-text); }
+.theme-night .pending-divider-insert > span { background:color-mix(in srgb,var(--night-text) 60%,transparent); }
+.theme-night .pending-divider { color:var(--night-text); }
+.theme-night .pending-divider::before { background:color-mix(in srgb,var(--night-text) 86%,transparent); }
+.theme-night .pending-divider.drop-above::before,.theme-night .pending-divider.drop-below::before { background:var(--night-gold); box-shadow:0 0 0 1px #080806; }
+.theme-night .pending-divider.is-dragging::before { background:var(--night-gold); box-shadow:0 0 0 1px #080806; }
+.theme-night .pending-divider:focus-visible::before { background:var(--night-text); }
+.theme-night .pending-divider-handle { color:#080806; background:var(--night-text); }
+.theme-night .pending-divider > button { color:#080806; background:var(--night-gold); border-color:#080806; box-shadow:2px 2px 0 var(--night-text); }
+.theme-night .pending-divider > button:hover,.theme-night .pending-divider > button:focus-visible { color:var(--night-gold); background:#080806; outline-color:var(--night-text); }
+.theme-night .pending-divider-drop-preview { background:var(--night-gold); border-color:#080806; }
 .theme-night .board-density-control button { color:rgba(238,234,203,.56); background:var(--night-surface); border-color:var(--night-line); }
 .theme-night .board-density-control button i { color:rgba(224,202,70,.56); }
 .theme-night .board-density-control button small { color:var(--night-muted); }

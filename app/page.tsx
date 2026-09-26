@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Fragment, FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { DiscardSignalDialog } from './components/DiscardSignalDialog';
 import { GoalRadar, SignalRoom, SignalTicker, useSignals } from './components/SignalRoom';
 import { BrandLockup } from './components/BrandLockup';
@@ -71,6 +71,8 @@ type PlannerSettings = {
   defaultLocation: string;
   recurrenceEnabled: boolean;
   recurrenceOrder: string[];
+  pendingDividerIndex: number | null;
+  pendingDividerCollapsed: boolean;
 };
 
 const BASE_TYPES: PlannerSettings['taskTypes'] = [
@@ -80,7 +82,7 @@ const BASE_TYPES: PlannerSettings['taskTypes'] = [
   ...['🏃‍➡️ 运动', '🧘 冥想', '🎈 聚会', '🎮 娱乐', '🛏️ 休息'].map((value) => ({ value, color: 'yellow' as const })),
 ];
 const BASE_LOCATIONS = ['🏠 家', '🏢 公司', '🏫 学校', '💻 线上', '🏃 户外', '✈️ 机场', '🚉 车站', '🛒 超市', '📍 其他'].map((value) => ({ value }));
-const DEFAULT_SETTINGS: PlannerSettings = { username: '2DimensionalM', taskTypes: BASE_TYPES, locations: BASE_LOCATIONS, defaultTaskType: '🧬 个人', defaultLocation: '🏠 家', recurrenceEnabled: true, recurrenceOrder: [] };
+const DEFAULT_SETTINGS: PlannerSettings = { username: '2DimensionalM', taskTypes: BASE_TYPES, locations: BASE_LOCATIONS, defaultTaskType: '🧬 个人', defaultLocation: '🏠 家', recurrenceEnabled: true, recurrenceOrder: [], pendingDividerIndex: null, pendingDividerCollapsed: false };
 const CANCELLATION_LOG_LIMIT = 6;
 const RETIRED_ROUTINE_TYPE = '⏰ 作息';
 const TASK_KEY = 'sao-planner-tasks-v2';
@@ -115,6 +117,7 @@ function sortedTaskTypes(taskTypes: PlannerSettings['taskTypes']) {
 function normalizeSettings(raw: Partial<PlannerSettings> | null | undefined): PlannerSettings {
   const merged = { ...DEFAULT_SETTINGS, ...(raw ?? {}) };
   const taskTypes = sortedTaskTypes((Array.isArray(merged.taskTypes) ? merged.taskTypes : BASE_TYPES).filter((type) => type.value !== RETIRED_ROUTINE_TYPE));
+  const pendingDividerIndex = typeof merged.pendingDividerIndex === 'number' && Number.isInteger(merged.pendingDividerIndex) && merged.pendingDividerIndex >= 0 ? merged.pendingDividerIndex : null;
   return {
     username: typeof merged.username === 'string' && merged.username.trim() ? merged.username.trim() : DEFAULT_SETTINGS.username,
     taskTypes,
@@ -123,6 +126,8 @@ function normalizeSettings(raw: Partial<PlannerSettings> | null | undefined): Pl
     defaultLocation: typeof merged.defaultLocation === 'string' ? merged.defaultLocation : DEFAULT_SETTINGS.defaultLocation,
     recurrenceEnabled: merged.recurrenceEnabled !== false,
     recurrenceOrder: Array.isArray(merged.recurrenceOrder) ? [...new Set(merged.recurrenceOrder.filter((seriesId): seriesId is string => typeof seriesId === 'string' && seriesId.length > 0))] : [],
+    pendingDividerIndex,
+    pendingDividerCollapsed: pendingDividerIndex !== null && merged.pendingDividerCollapsed === true,
   };
 }
 
@@ -1194,8 +1199,8 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
   </div><div ref={editorRef} className="rich-description-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="补充任务背景、完成标准或下一步…" onFocus={rememberSelection} onMouseDown={focusEmptyChecklistItem} onCopy={copyDescriptionText} onCut={(event) => copyDescriptionText(event, true)} onPaste={pastePlainText} onKeyDown={(event) => { continueChecklist(event); if (!event.defaultPrevented) deleteEmptyChecklistItem(event); }} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onClick={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === 'checkbox') { target.toggleAttribute('checked', target.checked); onChange(editorRef.current?.innerHTML ?? ''); } }} onInput={() => { rememberSelection(); onChange(editorRef.current?.innerHTML ?? ''); }} /></div>;
 }
 
-function TaskCard({ task, color, now, dragging, landed, onOpen, onStart, onDragStart, onDragEnd, onDragOver, onDrop }: {
-  task: Task; color: TypeColor; now: Date; dragging: boolean; landed: boolean; onOpen: () => void;
+function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen, onStart, onDragStart, onDragEnd, onDragOver, onDrop }: {
+  task: Task; color: TypeColor; now: Date; dragging: boolean; landed: boolean; dividerDropEdge?: 'before' | 'after'; onOpen: () => void;
   onStart: () => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void;
   onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void;
@@ -1205,6 +1210,7 @@ function TaskCard({ task, color, now, dragging, landed, onOpen, onStart, onDragS
   return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''}`}
     draggable tabIndex={0} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop} onClick={onOpen}
     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}>
+    {dividerDropEdge && <span className={`pending-divider-drop-preview is-${dividerDropEdge}`} aria-hidden="true" />}
     <div className="card-stripe" />
     <div className="card-topline"><span className="task-type">{task.location}</span><div className="task-flags">{task.recurrence !== 'none' && <span title={recurrenceLabel(task)} className="repeat-icon"><i aria-hidden="true">↻</i></span>}<span className="priority-label">{task.priority === 'must' ? 'MUST' : task.priority === 'high' ? 'HIGH' : task.priority === 'medium' ? 'MID' : 'LOW'}</span></div></div>
     <h3>{task.title}</h3>
@@ -1219,6 +1225,54 @@ function TaskCard({ task, color, now, dragging, landed, onOpen, onStart, onDragS
       {task.status === 'completed' && <span>✓ {formatTime(task.completedAt)}</span>}
     </div><div className="compact-card-meta"><span>{task.taskType}</span><span className={task.dueAt && +new Date(task.dueAt) < +now ? 'is-overdue' : ''}>⌁ {task.dueAt ? formatTime(task.dueAt) : 'NO DEADLINE'}</span></div><span className="drag-hint" aria-hidden="true">⋮⋮</span>
   </article>;
+}
+
+function PendingDividerInsert({ index, onInsert }: { index: number; onInsert: (index: number) => void }) {
+  return <button type="button" className="pending-divider-insert" aria-label={`在第 ${index} 个任务后设置隐藏位置`} onClick={() => onInsert(index)}>
+    <span aria-hidden="true" />
+  </button>;
+}
+
+function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, onDelete, onMove, onDragStart, onDragEnd, onTaskDrop }: {
+  collapsed: boolean;
+  hiddenCount: number;
+  draggingTask: boolean;
+  dragging: boolean;
+  onDelete: () => void;
+  onMove: (direction: -1 | 1) => void;
+  onDragStart: (event: React.DragEvent<HTMLElement>) => void;
+  onDragEnd: () => void;
+  onTaskDrop: (side: 'above' | 'below') => void;
+}) {
+  const [dropSide, setDropSide] = useState<'above' | 'below' | null>(null);
+  const updateDropSide = (event: React.DragEvent<HTMLElement>) => {
+    if (!draggingTask) return;
+    const rect = event.currentTarget.getBoundingClientRect();
+    setDropSide(event.clientY < rect.top + rect.height / 2 ? 'above' : 'below');
+  };
+  return <article className={`pending-divider ${collapsed ? 'is-collapsed' : 'is-expanded'} ${dragging ? 'is-dragging' : ''} ${dropSide ? `drop-${dropSide}` : ''}`}
+    draggable role="button" aria-roledescription="可拖拽分隔符" aria-label={`Pending 可见分隔符，以下 ${hiddenCount} 个任务${collapsed ? '已隐藏' : '已展开'}`} tabIndex={0}
+    onDragStart={onDragStart} onDragEnd={() => { setDropSide(null); onDragEnd(); }}
+    onDragOver={(event) => { if (!draggingTask) return; event.preventDefault(); event.stopPropagation(); updateDropSide(event); }}
+    onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropSide(null); }}
+    onDrop={(event) => { if (!draggingTask || !dropSide) return; event.preventDefault(); event.stopPropagation(); onTaskDrop(dropSide); setDropSide(null); }}
+    onKeyDown={(event) => {
+      if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); onDelete(); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); onMove(-1); }
+      else if (event.key === 'ArrowDown') { event.preventDefault(); onMove(1); }
+    }}>
+    <span className="pending-divider-handle" aria-hidden="true">•••</span>
+    <button type="button" aria-label="删除 Pending 分隔符" title="删除分隔符" draggable={false} onClick={(event) => { event.stopPropagation(); onDelete(); }}>×</button>
+  </article>;
+}
+
+function pendingDividerIndexAtPointer(container: HTMLElement, clientY: number, taskCount: number) {
+  const cards = Array.from(container.querySelectorAll<HTMLElement>('.task-card'));
+  const nextCardIndex = cards.findIndex((card) => {
+    const rect = card.getBoundingClientRect();
+    return clientY < rect.top + rect.height / 2;
+  });
+  return nextCardIndex < 0 ? taskCount : Math.min(nextCardIndex, taskCount);
 }
 
 export default function Home() {
@@ -1265,6 +1319,8 @@ export default function Home() {
   const [pendingSortOpen, setPendingSortOpen] = useState(false);
   const [showCompletedHistory, setShowCompletedHistory] = useState(false);
   const [draggingId, setDraggingId] = useState('');
+  const [draggingPendingDivider, setDraggingPendingDivider] = useState(false);
+  const [pendingDividerDropIndex, setPendingDividerDropIndex] = useState<number | null>(null);
   const [dropTarget, setDropTarget] = useState<Status | ''>('');
   const [landedId, setLandedId] = useState('');
   const [impact, setImpact] = useState<{ title: string; subtitle: string; tier?: CountdownUrgency | 'action' } | null>(null);
@@ -1577,7 +1633,8 @@ export default function Home() {
     const boardTasks = missionTasks.filter((task) => task.status === board.id && (board.id !== 'completed' || showCompletedHistory || (task.completedAt && localDateKey(new Date(task.completedAt)) === today)));
     result[board.id] = board.id === 'pending' ? sortPendingTasks(boardTasks, pendingSort) : sortTasks(boardTasks, board.id);
     return result;
-  }, {} as Record<Status, Task[]>), [missionTasks, showCompletedHistory, pendingSort]);
+  }, {} as Record<Status, Task[]>), [missionTasks, pendingSort, showCompletedHistory]);
+  const pendingDividerIndex = settings.pendingDividerIndex === null ? null : Math.min(settings.pendingDividerIndex, grouped.pending.length);
 
   const activeRecurringTasks = useMemo(() => {
     const recurringTasks = tasks.filter((task) => task.isRecurrenceTemplate && task.recurrence !== 'none');
@@ -1690,6 +1747,58 @@ export default function Home() {
     setImpact({ title: 'ORDER LOCKED!', subtitle: '自定义任务顺序已保存' });
     setDraggingId('');
     setDropTarget('');
+  };
+
+  const activatePendingDivider = (index: number) => {
+    const clampedIndex = Math.max(0, Math.min(index, grouped.pending.length));
+    const ranks = new Map(grouped.pending.map((task, taskIndex) => [task.id, taskIndex]));
+    setTasks((current) => current.map((task) => !task.isRecurrenceTemplate && task.status === 'pending' ? { ...task, manualOrder: ranks.get(task.id) ?? null } : task));
+    setSettings((current) => ({ ...current, pendingDividerIndex: clampedIndex, pendingDividerCollapsed: false }));
+    setPendingSort('custom');
+    setPendingSortOpen(false);
+    setToast('已设置任务显示位置');
+  };
+
+  const movePendingDivider = (index: number) => {
+    setSettings((current) => ({ ...current, pendingDividerIndex: Math.max(0, Math.min(index, grouped.pending.length)) }));
+    setDraggingPendingDivider(false);
+    setPendingDividerDropIndex(null);
+    setDropTarget('');
+    setToast('任务显示位置已调整');
+  };
+
+  const removePendingDivider = () => {
+    setSettings((current) => ({ ...current, pendingDividerIndex: null, pendingDividerCollapsed: false }));
+    setDraggingPendingDivider(false);
+    setPendingDividerDropIndex(null);
+    setDropTarget('');
+    setShowAll((current) => ({ ...current, pending: false }));
+    setToast('已恢复默认显示数量');
+  };
+
+  const moveTaskAcrossPendingDivider = (taskId: string, side: 'above' | 'below') => {
+    if (pendingDividerIndex === null) return;
+    const source = tasks.find((task) => task.id === taskId);
+    if (!source || source.isRecurrenceTemplate) return;
+    const ordered = [...grouped.pending];
+    const from = ordered.findIndex((task) => task.id === taskId);
+    const moving = from >= 0 ? ordered.splice(from, 1)[0] : transitionTask(source, 'pending');
+    const boundaryAfterRemoval = Math.max(0, pendingDividerIndex - (from >= 0 && from < pendingDividerIndex ? 1 : 0));
+    const insertionIndex = Math.min(boundaryAfterRemoval, ordered.length);
+    ordered.splice(insertionIndex, 0, moving);
+    const nextDividerIndex = side === 'above' ? insertionIndex + 1 : insertionIndex;
+    const ranks = new Map(ordered.map((task, index) => [task.id, index]));
+    setTasks((current) => current.map((task) => {
+      if (task.id === taskId) return { ...moving, manualOrder: ranks.get(taskId) ?? 0 };
+      if (!task.isRecurrenceTemplate && task.status === 'pending') return { ...task, manualOrder: ranks.get(task.id) ?? null };
+      return task;
+    }));
+    setSettings((current) => ({ ...current, pendingDividerIndex: nextDividerIndex }));
+    setLandedId(taskId);
+    setDraggingId('');
+    setPendingDividerDropIndex(null);
+    setDropTarget('');
+    setToast('任务位置已调整');
   };
 
   const reorderRepeaters = (draggedId: string, targetId: string) => {
@@ -2096,19 +2205,94 @@ export default function Home() {
 
     {view === 'board' && <section className={`board is-${boardDensity}`} aria-label={`${boardDensity === 'compact' ? '缩略' : '标准'}任务看板`}>{boardMeta.map((board) => {
       const boardTasks = grouped[board.id];
-      const visible = showAll[board.id] ? boardTasks : boardTasks.slice(0, VISIBLE_LIMIT[boardDensity][board.id]);
-      const hiddenCount = boardTasks.length - visible.length;
-      return <section className={`board-column ${dropTarget === board.id ? 'is-target' : ''}`} key={board.id}
-        onDragOver={(event) => { event.preventDefault(); setDropTarget(board.id); }} onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropTarget(''); }}
-        onDrop={(event) => { event.preventDefault(); if (draggingId) moveTask(draggingId, board.id); }}>
+      const pendingCustomMode = board.id === 'pending' && pendingSort === 'custom';
+      const hasPendingDivider = pendingCustomMode && pendingDividerIndex !== null;
+      const dividerIndex = hasPendingDivider ? pendingDividerIndex : null;
+      const dividerCollapsed = hasPendingDivider && settings.pendingDividerCollapsed;
+      const visible = hasPendingDivider
+        ? dividerCollapsed && !draggingPendingDivider ? boardTasks.slice(0, dividerIndex ?? 0) : boardTasks
+        : showAll[board.id] ? boardTasks : boardTasks.slice(0, VISIBLE_LIMIT[boardDensity][board.id]);
+      const hiddenCount = hasPendingDivider ? boardTasks.length - (dividerIndex ?? 0) : boardTasks.length - visible.length;
+      const pendingDivider = hasPendingDivider ? <PendingDivider collapsed={dividerCollapsed} hiddenCount={hiddenCount} draggingTask={Boolean(draggingId)} dragging={draggingPendingDivider}
+        onDelete={removePendingDivider}
+        onMove={(direction) => movePendingDivider((dividerIndex ?? 0) + direction)}
+        onDragStart={(event) => { setDraggingPendingDivider(true); setPendingDividerDropIndex(dividerIndex ?? 0); setDraggingId(''); setDropTarget(''); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'pending-divider'); }}
+        onDragEnd={() => { setDraggingPendingDivider(false); setPendingDividerDropIndex(null); setDropTarget(''); }}
+        onTaskDrop={(side) => { if (draggingId) moveTaskAcrossPendingDivider(draggingId, side); }} /> : null;
+      return <section className={`board-column ${!draggingPendingDivider && dropTarget === board.id ? 'is-target' : ''}`} key={board.id}
+        onDragOver={(event) => {
+          if (draggingPendingDivider) {
+            if (board.id !== 'pending') return;
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            setPendingDividerDropIndex(pendingDividerIndexAtPointer(event.currentTarget, event.clientY, boardTasks.length));
+            return;
+          }
+          event.preventDefault();
+          setDropTarget(board.id);
+        }}
+        onDragLeave={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+          if (draggingPendingDivider) setPendingDividerDropIndex(null);
+          else setDropTarget('');
+        }}
+        onDrop={(event) => {
+          if (draggingPendingDivider) {
+            if (board.id !== 'pending') return;
+            event.preventDefault();
+            movePendingDivider(pendingDividerIndexAtPointer(event.currentTarget, event.clientY, boardTasks.length));
+            return;
+          }
+          event.preventDefault();
+          if (draggingId) moveTask(draggingId, board.id);
+        }}>
         <header className="column-header"><span className="column-index">{board.index}</span><div><div className="column-titleline"><h2>{board.title}</h2>{board.id === 'pending' && <div className="pending-sort" ref={pendingSortRef}><button type="button" className="column-sort-trigger" aria-haspopup="menu" aria-expanded={pendingSortOpen} onClick={() => setPendingSortOpen((open) => !open)}><span>SORT</span><strong>{pendingSortLabel(pendingSort)}</strong><i>⌄</i></button>{pendingSortOpen && <div className="pending-sort-menu" role="menu" aria-label="等待行动排序方式">{([['custom', '自定义顺序'], ['priority', '优先级'], ['start', '开始时间'], ['deadline', '截止时间']] as [PendingSort, string][]).map(([value, label], index) => <button key={value} type="button" role="menuitemradio" aria-checked={pendingSort === value} className={pendingSort === value ? 'active' : ''} onClick={() => { setPendingSort(value); setPendingSortOpen(false); }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{label}</strong><i>{pendingSort === value ? '●' : '○'}</i></button>)}</div>}</div>}</div><p>{board.subtitle}</p></div><strong>{String(boardTasks.length).padStart(2, '0')}</strong></header>
-        <div className="task-stack">{visible.map((task) => <TaskCard key={task.id} task={task} color={typeColor(task.taskType, settings)} now={now} dragging={draggingId === task.id} landed={landedId === task.id}
-          onStart={() => moveTask(task.id, 'inProgress')}
-          onOpen={() => setDraft(task)} onDragStart={(event) => { setDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => { setDraggingId(''); setDropTarget(''); }}
-          onDragOver={(event) => event.preventDefault()} onDrop={(event) => { event.preventDefault(); event.stopPropagation(); if (!draggingId) return; const source = tasks.find((item) => item.id === draggingId); if (source?.status === task.status) reorderWithin(task.status, draggingId, task.id); else moveTask(draggingId, task.status); }} />)}
+        <div className={`task-stack ${pendingCustomMode ? 'has-pending-divider-affordance' : ''}`}>{visible.map((task, taskIndex) => <Fragment key={task.id}>
+          {hasPendingDivider && dividerIndex === taskIndex && pendingDivider}
+          <TaskCard task={task} color={typeColor(task.taskType, settings)} now={now} dragging={draggingId === task.id} landed={landedId === task.id}
+            dividerDropEdge={draggingPendingDivider && board.id === 'pending'
+              ? pendingDividerDropIndex === taskIndex ? 'before'
+                : taskIndex === visible.length - 1 && pendingDividerDropIndex === visible.length ? 'after'
+                  : undefined
+              : undefined}
+            onStart={() => moveTask(task.id, 'inProgress')}
+            onOpen={() => setDraft(task)} onDragStart={(event) => { setDraggingPendingDivider(false); setPendingDividerDropIndex(null); setDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => { setDraggingId(''); setPendingDividerDropIndex(null); setDropTarget(''); }}
+            onDragOver={(event) => {
+              if (draggingPendingDivider) {
+                if (board.id !== 'pending') return;
+                event.preventDefault();
+                event.stopPropagation();
+                event.dataTransfer.dropEffect = 'move';
+                const rect = event.currentTarget.getBoundingClientRect();
+                setPendingDividerDropIndex(taskIndex + (event.clientY >= rect.top + rect.height / 2 ? 1 : 0));
+                return;
+              }
+              event.preventDefault();
+            }}
+            onDrop={(event) => {
+              if (draggingPendingDivider) {
+                if (board.id !== 'pending') return;
+                event.preventDefault();
+                event.stopPropagation();
+                const rect = event.currentTarget.getBoundingClientRect();
+                movePendingDivider(taskIndex + (event.clientY >= rect.top + rect.height / 2 ? 1 : 0));
+                return;
+              }
+              event.preventDefault();
+              event.stopPropagation();
+              if (!draggingId) return;
+              const source = tasks.find((item) => item.id === draggingId);
+              if (source?.status === task.status) reorderWithin(task.status, draggingId, task.id);
+              else moveTask(draggingId, task.status);
+            }} />
+          {pendingCustomMode && !hasPendingDivider && <PendingDividerInsert index={taskIndex + 1} onInsert={activatePendingDivider} />}
+        </Fragment>)}
+          {hasPendingDivider && (dividerIndex ?? 0) >= visible.length && pendingDivider}
           {boardTasks.length === 0 && <button className={`empty-state empty-state-${board.id}`} onClick={() => openNewTask(board.id)}><span aria-hidden="true">{board.id === 'pending' ? '?' : board.id === 'inProgress' ? '!' : '★'}</span><strong>{board.id === 'pending' ? 'NEXT QUEST?' : board.id === 'inProgress' ? 'READY TO ENGAGE' : 'CLEAR THE STAGE!'}</strong></button>}
         </div>
-        {(hiddenCount > 0 || showAll[board.id]) && <button className="reveal-button" onClick={() => setShowAll((current) => ({ ...current, [board.id]: !current[board.id] }))}>{showAll[board.id] ? '收起任务 ↑' : `显示其余 ${hiddenCount} 个任务 ↓`}</button>}
+        {hasPendingDivider
+          ? hiddenCount > 0 && <button className="reveal-button" onClick={() => setSettings((current) => ({ ...current, pendingDividerCollapsed: !current.pendingDividerCollapsed }))}>{dividerCollapsed ? `显示其余 ${hiddenCount} 个任务 ↓` : '收起任务 ↑'}</button>
+          : (hiddenCount > 0 || showAll[board.id]) && <button className="reveal-button" onClick={() => setShowAll((current) => ({ ...current, [board.id]: !current[board.id] }))}>{showAll[board.id] ? '收起任务 ↑' : `显示其余 ${hiddenCount} 个任务 ↓`}</button>}
         {board.id === 'completed' && missionTasks.some((task) => task.status === 'completed' && task.completedAt && localDateKey(new Date(task.completedAt)) !== localDateKey(now)) && <button className="history-button" onClick={() => { setShowCompletedHistory((current) => !current); setShowAll((current) => ({ ...current, completed: false })); }}>{showCompletedHistory ? '只看今天完成 ✓' : '查看过去完成记录 ↗'}</button>}
       </section>;
     })}</section>}

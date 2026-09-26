@@ -14,7 +14,7 @@ The API accepts requests only from HTTP origins on `localhost` or `127.0.0.1`. I
 ## Schema
 
 - `tasks`: one row per task. Frequently queried fields are relational columns; `payload_json` preserves the complete application record for forwards-compatible reads.
-- `planner_settings`: the current task-type, location, and default-selection configuration.
+- `planner_settings`: the current task-type, location, default-selection, recurrence-order, and Pending-divider configuration. The divider is stored as one positional threshold plus its collapsed state; it is not represented as a task row. The threshold is applied only in Custom sort mode, while other sort modes temporarily ignore it without deleting it.
 - `app_meta`: database initialization, theme, revision, and update timestamp.
 - `migration_backups`: immutable JSON snapshots captured during an explicit browser-storage import.
 - `deadline_events`: immutable audit events captured when an existing deadline on a Must task is changed or cleared. Initial deadline assignment is not a change.
