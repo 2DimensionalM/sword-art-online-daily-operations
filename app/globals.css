@@ -282,14 +282,20 @@ button { color:inherit; }
 .no-results { display:grid; place-items:center; min-height:270px; font-size:13px; font-weight:1000; letter-spacing:.12em; }
 .sort-note { margin:13px 4px 0; font-size:9px; font-weight:800; }
 
-/* Archive stays viewport-locked. Night log only locks in Standard while extra nights stay collapsed. */
-html:has(.view-table),html:has(.view-sleep .sleep-rhythm-map.is-standard:not(.is-expanded)) { overflow:hidden; scrollbar-gutter:auto; }
-.view-table.app-shell,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) { height:100dvh; max-height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
-.view-table .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-frame { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
-.view-table .hero,.view-table .app-footer,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .hero,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-footer { flex-shrink:0; }
+/* Archive, calendar, and collapsed night log stay viewport-locked so the page-right yellow scrollbar does not appear. */
+html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhythm-map.is-standard:not(.is-expanded)) { overflow:hidden; scrollbar-gutter:auto; }
+.view-table.app-shell,.view-calendar.app-shell,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) { height:100dvh; max-height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+.view-table .app-frame,.view-calendar .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-frame { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+.view-table .hero,.view-table .app-footer,.view-calendar .hero,.view-calendar .app-footer,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .hero,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-footer { flex-shrink:0; }
 .view-table .archive-page { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:auto; }
 .view-table .page-banner,.view-table .filter-deck,.view-table .sort-note { flex-shrink:0; }
 .view-table .archive-table-wrap { flex:1 1 auto; min-height:140px; max-height:none; }
+.view-calendar .calendar-page { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+.view-calendar .calendar-page > .page-banner { flex-shrink:0; }
+.view-calendar .calendar-layout { flex:1 1 auto; min-height:0; overflow:hidden; padding:0 8px 8px 0; }
+.view-calendar .month-grid { height:100%; max-height:100%; overflow:auto; scrollbar-width:none; }
+.view-calendar .month-grid::-webkit-scrollbar { width:0; height:0; display:none; }
+.view-calendar .weekday-row { position:sticky; top:0; z-index:2; }
 .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-page { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
 .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-hero { flex-shrink:0; }
 .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-workbench { flex:1 1 auto; min-height:0; align-items:stretch; grid-template-rows:minmax(0,1fr); }
@@ -737,6 +743,7 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
   .page-banner { grid-template-columns:49px 1fr; padding-right:13px; }.page-banner>span { width:43px; height:43px; }.page-banner h2 { font-size:23px; }.page-banner>strong { display:none; }
   .filter-deck { grid-template-columns:1fr 1fr; }.filter-deck .search-filter { grid-column:1/3; }.filter-deck .archive-filter:last-child { grid-column:1/3; }
   .archive-table { min-width:1380px; }
+  html:has(.view-calendar) { overflow:auto; scrollbar-gutter:stable; }.view-calendar.app-shell { height:auto; max-height:none; display:block; }.view-calendar .app-frame,.view-calendar .calendar-page { display:block; min-height:0; overflow:visible; }.view-calendar .calendar-layout { overflow:visible; padding:0; }.view-calendar .month-grid { height:auto; max-height:none; }.view-calendar .weekday-row { position:static; }
   .month-nav { grid-column:1/3; justify-content:center; margin-top:5px; }.calendar-layout { width:100%; }.month-grid { overflow:auto; }.weekday-row,.calendar-grid { min-width:700px; }.timeline { grid-template-columns:1fr; }
   .settings-grid { min-width:0; }.setting-options { gap:5px; }.custom-panel form { grid-template-columns:1fr; }.custom-panel form label { grid-column:1; }.recurrence-control-panel>header,.cancellation-log-panel>header { grid-template-columns:48px 1fr; }.recurrence-control-panel>header>strong,.cancellation-log-panel>header>strong { grid-column:1/3; justify-self:start; margin-left:58px; }.repeat-control-grid { grid-template-columns:1fr; }.repeat-master-card { border-right:0; border-bottom:3px solid var(--ink); }.repeat-roster>header { align-items:flex-start; flex-direction:column; }.repeat-roster-actions { width:100%; justify-content:flex-start; }.recurrence-series-item { grid-template-columns:34px minmax(0,1fr); }.recurrence-series-item>button { grid-column:auto; }.recurrence-series-item>button:first-of-type { grid-column:1/2; }.recurrence-series-item .stop-repeat { grid-column:2/3; }.cancellation-log-rule { grid-template-columns:1fr; }.cancellation-event-list article { grid-template-columns:32px minmax(0,1fr) 48px; }.cancellation-event-list article>time { grid-column:2; grid-row:2; text-align:left; }.cancellation-event-list article>button { grid-column:3; grid-row:1/3; }.cancellation-event-list article>div small { white-space:normal; }
   .loadout-console { grid-template-columns:1fr; }.loadout-preview { min-height:170px; }.workshop-body form { grid-template-columns:1fr; }.workshop-body form label { grid-column:1; }
