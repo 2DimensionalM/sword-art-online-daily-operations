@@ -362,6 +362,7 @@ function saveState(payload) {
     writeMeta.run('initialized', 'true');
     writeMeta.run('revision', String(currentRevision + 1));
     writeMeta.run('updated_at', now);
+    reconcileFocusTasks(now);
     db.exec('COMMIT');
   } catch (error) {
     db.exec('ROLLBACK');
@@ -490,6 +491,131 @@ function saveSignals(payload) {
   }
 }
 
+// Additive LOCKIN CHANNEL migration: independent revisions and historical task snapshots.
+db.exec(`
+  CREATE TABLE IF NOT EXISTS focus_control (
+    id INTEGER PRIMARY KEY CHECK (id = 1), revision INTEGER NOT NULL,
+    minimum_minutes INTEGER NOT NULL, break_minutes INTEGER NOT NULL
+  );
+  INSERT OR IGNORE INTO focus_control VALUES (1, 0, 8, 3);
+  CREATE TABLE IF NOT EXISTS focus_sessions (
+    id TEXT PRIMARY KEY, started_at TEXT NOT NULL, ended_at TEXT,
+    payload_json TEXT NOT NULL
+  );
+  CREATE UNIQUE INDEX IF NOT EXISTS idx_focus_single_active ON focus_sessions ((1)) WHERE ended_at IS NULL;
+  CREATE TABLE IF NOT EXISTS focus_commands (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
+`);
+
+function saveFocusSession(session) {
+  db.prepare(`INSERT INTO focus_sessions VALUES (?, ?, ?, ?)
+    ON CONFLICT(id) DO UPDATE SET ended_at = excluded.ended_at, payload_json = excluded.payload_json`)
+    .run(session.id, session.startedAt, session.endedAt, JSON.stringify(session));
+}
+
+// Runs inside the planner transaction: task time stops at the mutation, not at a UI poll.
+function reconcileFocusTasks(at) {
+  const row = db.prepare('SELECT payload_json FROM focus_sessions WHERE ended_at IS NULL').get();
+  if (!row) return;
+  const session = JSON.parse(row.payload_json);
+  let changed = false;
+  for (const link of session.tasks) {
+    if (link.unlinkedAt) continue;
+    const task = db.prepare('SELECT status, task_type, payload_json, updated_at FROM tasks WHERE id = ?').get(link.id);
+    const eligible = task?.status === 'inProgress' && /(学业|学习|复习|证书)/u.test(task.task_type) && !/工作/u.test(task.task_type) && !JSON.parse(task.payload_json).isRecurrenceTemplate;
+    if (eligible) continue;
+    const stoppedAt = at ?? task?.updated_at ?? new Date().toISOString();
+    link.unlinkedAt = new Date(Math.max(Date.parse(session.startedAt), Date.parse(stoppedAt))).toISOString();
+    link.finalStatus = task?.status ?? 'deleted';
+    changed = true;
+  }
+  if (!changed) return;
+  if (session.tasks.every((link) => link.unlinkedAt)) {
+    const lastStop = session.tasks.reduce((latest, link) => link.unlinkedAt > latest ? link.unlinkedAt : latest, session.startedAt);
+    session.focusEndedAt ??= lastStop;
+    session.endedAt = lastStop > session.focusEndedAt ? lastStop : session.focusEndedAt;
+    session.phase = 'ended';
+    session.endReason = 'tasks-inactive';
+  }
+  saveFocusSession(session);
+  db.prepare('UPDATE focus_control SET revision = revision + 1 WHERE id = 1').run();
+}
+
+db.exec('BEGIN IMMEDIATE');
+try { reconcileFocusTasks(); db.exec('COMMIT'); }
+catch (error) { db.exec('ROLLBACK'); throw error; }
+
+function getFocusState() {
+  const control = db.prepare('SELECT * FROM focus_control WHERE id = 1').get();
+  return {
+    revision: control.revision,
+    eligibleTasks: db.prepare("SELECT id, title, task_type, payload_json FROM tasks WHERE status = 'inProgress'").all()
+      .filter((task) => /(学业|学习|复习|证书)/u.test(task.task_type) && !/工作/u.test(task.task_type) && !JSON.parse(task.payload_json).isRecurrenceTemplate)
+      .map((task) => ({ id: task.id, title: task.title, taskType: task.task_type, status: 'inProgress' })),
+    settings: { minimumMinutes: control.minimum_minutes, breakMinutes: control.break_minutes },
+    sessions: db.prepare('SELECT payload_json FROM focus_sessions ORDER BY started_at DESC, rowid DESC').all().map((row) => JSON.parse(row.payload_json)),
+    serverNow: new Date().toISOString(),
+  };
+}
+
+function focusCommand(body) {
+  if (!body || typeof body.requestId !== 'string' || !/^[\w-]{1,80}$/.test(body.requestId)) throw new Error('Invalid focus request id');
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    const state = getFocusState();
+    if (db.prepare('SELECT id FROM focus_commands WHERE id = ?').get(body.requestId)) {
+      db.exec('COMMIT');
+      return { state, conflict: false };
+    }
+    if (!Number.isInteger(body.expectedRevision) || body.expectedRevision !== state.revision) {
+      db.exec('ROLLBACK');
+      return { state, conflict: true };
+    }
+    const at = new Date().toISOString();
+    const active = state.sessions.find((session) => !session.endedAt);
+    const saveSession = saveFocusSession;
+    if (body.action === 'deleteSession') {
+      if (typeof body.targetSessionId !== 'string') throw new Error('请选择要删除的记录');
+      const target = state.sessions.find((session) => session.id === body.targetSessionId);
+      if (!target || !target.endedAt) throw new Error('只能删除已结束的记录');
+      db.prepare('DELETE FROM focus_sessions WHERE id = ?').run(target.id);
+    } else if (body.action === 'settings') {
+      const { minimumMinutes, breakMinutes } = body;
+      if (![minimumMinutes, breakMinutes].every((value) => Number.isInteger(value) && value >= 1 && value <= 180)) throw new Error('时间需为 1–180 分钟的整数');
+      db.prepare('UPDATE focus_control SET minimum_minutes = ?, break_minutes = ? WHERE id = 1').run(minimumMinutes, breakMinutes);
+    } else if (body.action === 'start' || body.action === 'resume') {
+      if (body.action === 'start' && active) throw new Error('已有计时正在进行，请刷新');
+      if (body.action === 'resume' && active?.phase !== 'break') throw new Error('当前不在休息中，请刷新');
+      if (!Array.isArray(body.taskIds) || !body.taskIds.length || body.taskIds.length > 100 || new Set(body.taskIds).size !== body.taskIds.length || body.taskIds.some((id) => typeof id !== 'string')) throw new Error('请至少关联一个正在进行的学习或证书任务');
+      const tasks = body.taskIds.map((id) => {
+        const task = db.prepare('SELECT * FROM tasks WHERE id = ?').get(id);
+        if (!task || task.status !== 'inProgress' || !/(学业|学习|复习|证书)/u.test(task.task_type) || /(工作)/u.test(task.task_type) || JSON.parse(task.payload_json).isRecurrenceTemplate) throw new Error('关联任务已变化，请刷新后重新选择');
+        return { id: task.id, title: task.title, taskType: task.task_type };
+      });
+      if (active) { active.endedAt = at; active.phase = 'ended'; saveSession(active); }
+      saveSession({ id: body.requestId, startedAt: at, focusEndedAt: null, endedAt: null, phase: 'focus', ...state.settings, tasks, drifts: [] });
+    } else {
+      if (!active || active.id !== body.sessionId) throw new Error('计时已变化，请刷新');
+      if (body.action === 'drift' && active.phase === 'focus') {
+        active.drifts.push({ at, returnedAt: null });
+      } else if (body.action === 'recover' && active.phase === 'focus' && active.drifts.length && !active.drifts.at(-1).returnedAt) {
+        active.drifts.at(-1).returnedAt = at;
+      } else if (body.action === 'break' && active.phase === 'focus') {
+        active.focusEndedAt = at;
+        active.phase = 'break';
+      } else if (body.action === 'finish') {
+        active.focusEndedAt ??= at;
+        active.endedAt = at;
+        active.phase = 'ended';
+      } else throw new Error('当前状态不支持此操作，请刷新');
+      saveSession(active);
+    }
+    db.prepare('UPDATE focus_control SET revision = revision + 1 WHERE id = 1').run();
+    db.prepare('INSERT INTO focus_commands VALUES (?, ?)').run(body.requestId, at);
+    db.exec('COMMIT');
+    return { state: getFocusState(), conflict: false };
+  } catch (error) { db.exec('ROLLBACK'); throw error; }
+}
+
 function isAllowedOrigin(origin) {
   if (!origin) return true;
   try {
@@ -526,6 +652,11 @@ const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') return sendJson(response, 204, {}, origin);
 
   try {
+    if (request.method === 'GET' && request.url === '/v1/focus') return sendJson(response, 200, getFocusState(), origin);
+    if (request.method === 'POST' && request.url === '/v1/focus') {
+      const result = focusCommand(await readJson(request));
+      return sendJson(response, result.conflict ? 409 : 200, result.state, origin);
+    }
     if (request.method === 'GET' && request.url === '/health') {
       return sendJson(response, 200, { ok: true }, origin);
     }

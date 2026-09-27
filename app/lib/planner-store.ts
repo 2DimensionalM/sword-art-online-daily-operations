@@ -38,3 +38,22 @@ export async function loadPlannerState<Task, Settings>() {
 export async function savePlannerState<Task, Settings>(state: SavePlannerState<Task, Settings>) {
   return databaseRequest<Task, Settings>({ method: 'PUT', body: JSON.stringify(state) });
 }
+
+// Attention records use the same loopback transport, independently of planner writes.
+export async function loadFocusState(): Promise<import('./focus-model').FocusState> {
+  const response = await fetch('http://127.0.0.1:43110/v1/focus', { cache: 'no-store' });
+  if (!response.ok) throw new Error('专注频道连接中断，请重试。');
+  return response.json();
+}
+
+export async function sendFocusCommand(command: import('./focus-model').FocusCommand) {
+  const response = await fetch('http://127.0.0.1:43110/v1/focus', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+  });
+  const body = await response.json();
+  if (!response.ok && response.status !== 409) {
+    const message = (body as { error?: string }).error || '记录未保存，请重试。';
+    throw Object.assign(new Error(message), { confirmedRejected: true });
+  }
+  return { state: body as import('./focus-model').FocusState, conflicted: response.status === 409 };
+}

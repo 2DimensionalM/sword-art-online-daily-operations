@@ -3,6 +3,7 @@
 import { Fragment, FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { DiscardSignalDialog } from './components/DiscardSignalDialog';
 import { GoalRadar, SignalRoom, SignalTicker, useSignals } from './components/SignalRoom';
+import { LockinChannel } from './components/LockinChannel';
 import { BrandLockup } from './components/BrandLockup';
 import { LifeDashboard, type DashboardCampaignScale, type DashboardTask } from './components/LifeDashboard';
 import { loadDeadlineEvents, type DeadlineEvent } from './lib/deadline-store';
@@ -14,7 +15,7 @@ import { loadTaskDeletionEvents, recordTaskDeletionEvent, removeTaskDeletionEven
 type Status = 'pending' | 'inProgress' | 'completed';
 type Priority = 'must' | 'high' | 'medium' | 'low';
 type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly';
-type View = 'dashboard' | 'board' | 'table' | 'calendar' | 'sleep' | 'signals' | 'settings';
+type View = 'dashboard' | 'board' | 'table' | 'calendar' | 'sleep' | 'signals' | 'focus' | 'settings';
 type ChoiceFieldName = 'status' | 'priority' | 'taskType' | 'location' | 'recurrence';
 type DateFieldName = 'startedAt' | 'completedAt' | 'dueAt';
 type TypeColor = 'purple' | 'blue' | 'green' | 'yellow';
@@ -149,6 +150,7 @@ const navItems: { id: View; no: string; title: string; subtitle: string; mark: s
   { id: 'sleep', no: '03', title: 'NIGHT LOG', subtitle: '夜间状态档案', mark: '☾' },
   { id: 'calendar', no: '04', title: 'CALENDAR', subtitle: '月度行动日历', mark: '◆' },
   { id: 'signals', no: '05', title: 'SIGNAL ROOM', subtitle: '心愿放送室', mark: '◈' },
+  { id: 'focus', no: '07', title: 'LOCKIN CHANNEL', subtitle: '专注频道', mark: '↩' },
   { id: 'settings', no: '06', title: 'DESIGN', subtitle: '默认设置', mark: '✦' },
 ];
 
@@ -2200,8 +2202,10 @@ export default function Home() {
       <BrandLockup sectionTitle={activeNav.title} sectionSubtitle={activeNav.subtitle} username={settings.username} />
       <div className="day-card" aria-label="今日日期"><span>{new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(now).toUpperCase()}</span><strong>{String(now.getDate()).padStart(2, '0')}</strong><em>{new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(now).toUpperCase()}</em></div>
       <div className="mission-summary"><span>TODAY&apos;S CLEAR</span><strong>{completedToday}<small> / {todayActionTasks.length}</small></strong><div className="summary-track"><i style={{ width: `${todayActionTasks.length ? Math.min(100, completedToday / todayActionTasks.length * 100) : 0}%` }} /></div></div>
-      {view !== 'settings' && view !== 'sleep' && view !== 'signals' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
+      {view !== 'settings' && view !== 'sleep' && view !== 'signals' && view !== 'focus' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
     </header>
+
+    {view === 'focus' && <LockinChannel onCompleteTask={(id) => moveTask(id, 'completed')} onOpenBoard={() => navigateTo('board')} />}
 
     {view === 'signals' && <SignalRoom signals={signals} taskTypes={settings.taskTypes.map((item) => item.value)} onDirtyChange={setSignalDirty} />}
 
@@ -2448,7 +2452,7 @@ export default function Home() {
     <footer className="app-footer"><span>{activeNav.title}</span><i /><span>自动时间戳已开启</span><i /><span>本机自动保存</span></footer>
     </div>
 
-    <SignalTicker signals={signals} />
+    {view !== 'focus' && <SignalTicker signals={signals} />}
     {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
 
     {impact && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
