@@ -7,6 +7,7 @@ import { LockinDialog } from './LockinDialog';
 import { LockinRecords } from './LockinRecords';
 
 type Feedback = { kind: 'lock' | 'rest' | 'return' | 'start'; id: number };
+const CURTAIN_IDLE_MS = 30_000;
 
 export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask: (id: string) => void; onOpenBoard: () => void }) {
   const [state, setState] = useState<FocusState | null>(null);
@@ -22,6 +23,7 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
   const [section, setSection] = useState<'today' | 'archive' | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<FocusSession | null>(null);
   const [completing, setCompleting] = useState<string | null>(null);
+  const [curtainClosed, setCurtainClosed] = useState(false);
   const pending = useRef<FocusCommand | null>(null);
   const locked = useRef(false);
   const offset = useRef(0);
@@ -97,11 +99,33 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
   const elapsed = active ? focusDuration(active, now) : 0;
   const breakElapsed = resting ? Math.max(0, now - Date.parse(active.focusEndedAt!)) : 0;
   const breakRemaining = active ? Math.max(0, active.breakMinutes * 60000 - breakElapsed) : 0;
+  const curtainEnabled = focusing || (resting && breakRemaining > 0);
   const minimumMet = active && elapsed >= active.minimumMinutes * 60000;
   const disabled = busy || hasPending;
   const linked = focusing ? active.tasks : selected;
   const last = state?.sessions[0];
   const progress = Math.min(100, resting ? breakElapsed / (active.breakMinutes * 60000) * 100 : elapsed / ((active?.minimumMinutes ?? state?.settings.minimumMinutes ?? 8) * 60000) * 100);
+
+  useEffect(() => {
+    if (!curtainEnabled) return;
+    let idleTimer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      setCurtainClosed(false);
+      clearTimeout(idleTimer);
+      idleTimer = setTimeout(() => setCurtainClosed(true), CURTAIN_IDLE_MS);
+    };
+    const onInteraction = () => reset();
+    reset();
+    document.addEventListener('pointerdown', onInteraction);
+    document.addEventListener('keydown', onInteraction);
+    document.addEventListener('wheel', onInteraction);
+    return () => {
+      clearTimeout(idleTimer);
+      document.removeEventListener('pointerdown', onInteraction);
+      document.removeEventListener('keydown', onInteraction);
+      document.removeEventListener('wheel', onInteraction);
+    };
+  }, [curtainEnabled]);
 
   return <section className="lockin-channel" data-expanded={!!section} aria-label="专注频道">
     <header className="lockin-masthead"><h2>LOCKIN <em>CHANNEL</em></h2><div><span className="lockin-live-dot" />{focusing ? 'ON AIR' : resting ? 'RESET' : 'READY'}</div></header>
@@ -110,10 +134,11 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
       <div className="lockin-workbench">
         <section className={`lockin-console ${resting ? 'is-resting' : ''}`} aria-label="注意力计时">
           <div className="lockin-console-top"><span>{resting ? 'TAKE A BREATHER' : minimumMet ? 'LIMIT BREAK ✓' : 'FOCUS MODE'}</span><button aria-label="计时设置" onClick={() => { setMinimum(String(state.settings.minimumMinutes)); setRest(String(state.settings.breakMinutes)); setSettingsOpen(true); }}>⚙</button></div>
-          <div className="lockin-screen">
+          <div className={`lockin-screen ${curtainEnabled && curtainClosed ? 'is-veiled' : ''}`}>
             <div className="lockin-reticle" aria-hidden="true"><i /><i /><i /><i /><b /></div>
             <div className="lockin-time" role="timer" aria-label={resting ? '休息倒计时' : '本轮计时'}>{focusClock(resting ? breakRemaining : elapsed)}</div>
             <span className="lockin-cue">{resting ? breakRemaining ? '慢慢来。' : '准备好了就回来。' : recovering ? '发现了。现在，回来。' : focusing ? minimumMet ? '状态正好，继续。' : '就在这一刻。' : last?.endReason === 'tasks-inactive' ? '本轮已停计 ✓' : '准备好，锁定。'}</span>
+            <div className="lockin-curtain" aria-hidden="true"><div className="lockin-curtain-inner"><span className="lockin-curtain-kicker">LOCKIN CHANNEL / {resting ? 'RESET' : 'ON AIR'}</span><span className="lockin-curtain-mark">◈</span><strong>{resting ? '安心休息' : '此刻，专注'}</strong><small>时间仍在继续 · 交互后查看</small></div><span className="lockin-curtain-hem" /></div>
           </div>
           <div className="lockin-meter"><span>{resting ? 'RESET' : 'TARGET'}</span><div aria-hidden="true"><i style={{ width: `${progress}%` }} /></div><b>{resting ? active.breakMinutes : active?.minimumMinutes ?? state.settings.minimumMinutes}<small> MIN</small></b></div>
           <div className="lockin-actions">

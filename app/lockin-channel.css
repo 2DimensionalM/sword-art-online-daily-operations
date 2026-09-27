@@ -20,7 +20,7 @@ html:has(.lockin-channel[data-expanded="false"]) { overflow:hidden; scrollbar-gu
 .lockin-console::before { content:''; position:absolute; z-index:-1; inset:0; pointer-events:none; background:radial-gradient(circle,var(--color-paper) 1px,transparent 1.5px) 0 0/10px 10px; opacity:.035; }
 .lockin-console-top { display:flex; flex-shrink:0; justify-content:space-between; align-items:center; padding:0 12px 0 20px; height:42px; color:var(--color-signal); font:900 10px var(--font-ui); letter-spacing:.16em; }
 .lockin-console-top button { min-width:44px; height:44px; border:0; background:none; color:var(--color-paper); font-size:21px; }
-.lockin-screen { position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; flex:1; min-height:104px; margin:0 26px; }
+.lockin-screen { position:relative; display:flex; flex-direction:column; justify-content:center; align-items:center; flex:1; min-height:104px; margin:0 26px; overflow:hidden; }
 .lockin-reticle { position:absolute; inset:12% 10%; pointer-events:none; }
 .lockin-reticle > i { position:absolute; width:20px; height:20px; border:3px solid var(--color-signal); opacity:.75; }
 .lockin-reticle i:nth-child(1) { left:0; top:0; border-right:0; border-bottom:0; }
@@ -30,6 +30,16 @@ html:has(.lockin-channel[data-expanded="false"]) { overflow:hidden; scrollbar-gu
 .lockin-reticle b { position:absolute; width:4px; height:4px; border-radius:50%; left:50%; bottom:-12px; background:var(--color-signal); }
 .lockin-time { position:relative; font:900 clamp(72px,14vh,150px)/1 var(--font-ui); font-variant-numeric:tabular-nums; letter-spacing:-.06em; color:var(--color-paper); }
 .lockin-cue { font-size:12px; line-height:1.6; margin-top:8px; color:var(--color-signal); }
+.lockin-curtain { position:absolute; z-index:2; inset:0; display:flex; flex-direction:column; justify-content:center; align-items:center; pointer-events:none; color:var(--color-paper); background:linear-gradient(145deg,var(--color-charcoal),var(--color-ink) 64%); border-top:4px solid var(--color-signal); transform:translateY(calc(-100% - 4px)); transition:transform 760ms cubic-bezier(.55,0,.22,1); box-shadow:0 8px 18px color-mix(in srgb,var(--color-ink) 60%,transparent); }
+.lockin-curtain::before { content:''; position:absolute; inset:0; opacity:.11; background:repeating-linear-gradient(90deg,transparent 0 18px,var(--color-paper) 19px,transparent 20px 38px); }
+.lockin-curtain::after { content:''; position:absolute; inset:12px 14px 14px; border:1px solid color-mix(in srgb,var(--color-signal) 55%,transparent); clip-path:polygon(0 0,100% 0,100% 100%,0 100%); }
+.lockin-screen.is-veiled .lockin-curtain { transform:translateY(0); transition-duration:820ms; transition-timing-function:cubic-bezier(.18,.84,.25,1); }
+.lockin-curtain-inner { position:relative; z-index:1; display:flex; flex-direction:column; align-items:center; gap:5px; text-align:center; }
+.lockin-curtain-kicker { font:900 10px var(--font-ui); letter-spacing:.16em; color:var(--color-signal); }
+.lockin-curtain-mark { font:900 27px/1 var(--font-display); color:var(--color-signal); }
+.lockin-curtain-inner strong { font:900 clamp(22px,3vw,36px)/1.2 var(--font-cjk); letter-spacing:.06em; }
+.lockin-curtain-inner small { font:700 11px/1.5 var(--font-cjk); opacity:.78; }
+.lockin-curtain-hem { position:absolute; bottom:0; left:0; right:0; height:9px; border-top:2px solid var(--color-signal); background:repeating-linear-gradient(90deg,var(--color-signal) 0 26px,var(--color-ink) 26px 32px); }
 .lockin-meter { display:flex; align-items:center; gap:12px; margin:12px 24px; font:900 9px var(--font-ui); letter-spacing:.08em; }
 .lockin-meter > div { flex:1; height:5px; background:var(--color-charcoal); }
 .lockin-meter i { display:block; height:100%; background:var(--color-signal); }
@@ -170,6 +180,7 @@ html:has(.lockin-channel[data-expanded="false"]) { overflow:hidden; scrollbar-gu
 @media(max-height:720px) and (max-width:760px) {
   .view-focus .hero { min-height:155px; margin-bottom:10px; }
   .lockin-links { height:100px; }.lockin-console { min-height:220px; }.lockin-time { font-size:65px; }.lockin-screen { min-height:84px; }
+  .lockin-curtain-inner { gap:3px; }.lockin-curtain-mark { display:none; }.lockin-curtain-inner strong { font-size:21px; }.lockin-curtain-inner small { font-size:10px; }
 }
 @media(max-height:600px) { .lockin-workbench { overflow:auto; min-height:0; }.lockin-console { min-height:260px; }.lockin-links { min-height:110px; } }
 @media(prefers-reduced-motion:reduce) { .lockin-channel *, .lockin-channel *::before { animation:none!important; transition:none!important; }.lockin-impact-copy,.lockin-impact-rings i { transform:none; }.lockin-impact { clip-path:none; }.lockin-impact-rings { display:none; } }
