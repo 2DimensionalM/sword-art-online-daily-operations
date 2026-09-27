@@ -7,7 +7,7 @@ import { LockinChannel } from './components/LockinChannel';
 import { BrandLockup } from './components/BrandLockup';
 import { LifeDashboard, type DashboardCampaignScale, type DashboardTask } from './components/LifeDashboard';
 import { loadDeadlineEvents, type DeadlineEvent } from './lib/deadline-store';
-import { belowTaskIdsAfterReorder, belowTaskIdsFromDividerIndex, pendingDividerBelowTaskIdsFromRaw, releasePendingDividerTask, resolvePendingDividerIndex } from './lib/pending-divider';
+import { belowTaskIdsAfterReorder, belowTaskIdsFromDividerIndex, orderTaskAtPendingDivider, pendingDividerBelowTaskIdsFromRaw, releasePendingDividerTask, resolvePendingDividerIndex } from './lib/pending-divider';
 import { loadPlannerState, savePlannerState } from './lib/planner-store';
 import { createSleepRecord, loadSleepRecords, removeSleepRecord, type SleepRecord } from './lib/sleep-store';
 import { loadTaskDeletionEvents, recordTaskDeletionEvent, removeTaskDeletionEvent, type TaskDeletionEvent } from './lib/task-deletion-store';
@@ -1206,17 +1206,17 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
   </div><div ref={editorRef} className="rich-description-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="补充任务背景、完成标准或下一步…" onFocus={rememberSelection} onMouseDown={focusEmptyChecklistItem} onCopy={copyDescriptionText} onCut={(event) => copyDescriptionText(event, true)} onPaste={pastePlainText} onKeyDown={(event) => { continueChecklist(event); if (!event.defaultPrevented) deleteEmptyChecklistItem(event); }} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onClick={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === 'checkbox') { target.toggleAttribute('checked', target.checked); onChange(editorRef.current?.innerHTML ?? ''); } }} onInput={() => { rememberSelection(); onChange(editorRef.current?.innerHTML ?? ''); }} /></div>;
 }
 
-function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen, onStart, onDragStart, onDragEnd, onDragOver, onDrop }: {
+function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen, onStart, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
   task: Task; color: TypeColor; now: Date; dragging: boolean; landed: boolean; dividerDropEdge?: 'before' | 'after'; onOpen: () => void;
   onStart: () => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void;
-  onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void;
+  onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDragLeave?: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void;
 }) {
   const countdowns = countdownSignals(task, now);
   const countdown = countdowns.find((signal) => signal.kind === 'start') ?? countdowns.sort(compareCountdownSignals)[0];
   const completedLate = task.status === 'completed' && Boolean(task.completedAt && task.dueAt && +new Date(task.completedAt) > +new Date(task.dueAt));
   return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''}`}
-    draggable tabIndex={0} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDrop={onDrop} onClick={onOpen}
+    draggable tabIndex={0} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={onOpen}
     onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}>
     {dividerDropEdge && <span className={`pending-divider-drop-preview is-${dividerDropEdge}`} aria-hidden="true" />}
     <div className="card-stripe" />
@@ -1243,11 +1243,12 @@ function PendingDividerInsert({ index, onInsert }: { index: number; onInsert: (i
   </button>;
 }
 
-function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, onDelete, onMove, onDragStart, onDragEnd, onTaskDrop }: {
+function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, hintedSide, onDelete, onMove, onDragStart, onDragEnd, onTaskDrop }: {
   collapsed: boolean;
   hiddenCount: number;
   draggingTask: boolean;
   dragging: boolean;
+  hintedSide?: 'above' | 'below' | null;
   onDelete: () => void;
   onMove: (direction: -1 | 1) => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void;
@@ -1255,17 +1256,25 @@ function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, onDele
   onTaskDrop: (side: 'above' | 'below') => void;
 }) {
   const [dropSide, setDropSide] = useState<'above' | 'below' | null>(null);
+  const shownSide = dropSide ?? hintedSide ?? null;
   const updateDropSide = (event: React.DragEvent<HTMLElement>) => {
     if (!draggingTask) return;
     const rect = event.currentTarget.getBoundingClientRect();
     setDropSide(event.clientY < rect.top + rect.height / 2 ? 'above' : 'below');
   };
-  return <article className={`pending-divider ${collapsed ? 'is-collapsed' : 'is-expanded'} ${dragging ? 'is-dragging' : ''} ${dropSide ? `drop-${dropSide}` : ''}`}
+  return <article className={`pending-divider ${collapsed ? 'is-collapsed' : 'is-expanded'} ${dragging ? 'is-dragging' : ''} ${shownSide ? `drop-${shownSide}` : ''}`}
     draggable role="button" aria-roledescription="可拖拽分隔符" aria-label={`Pending 可见分隔符，以下 ${hiddenCount} 个任务${collapsed ? '已隐藏' : '已展开'}`} tabIndex={0}
     onDragStart={onDragStart} onDragEnd={() => { setDropSide(null); onDragEnd(); }}
     onDragOver={(event) => { if (!draggingTask) return; event.preventDefault(); event.stopPropagation(); updateDropSide(event); }}
     onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDropSide(null); }}
-    onDrop={(event) => { if (!draggingTask || !dropSide) return; event.preventDefault(); event.stopPropagation(); onTaskDrop(dropSide); setDropSide(null); }}
+    onDrop={(event) => {
+      if (!draggingTask) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = event.currentTarget.getBoundingClientRect();
+      onTaskDrop(event.clientY < rect.top + rect.height / 2 ? 'above' : 'below');
+      setDropSide(null);
+    }}
     onKeyDown={(event) => {
       if (event.key === 'Delete' || event.key === 'Backspace') { event.preventDefault(); onDelete(); }
       else if (event.key === 'ArrowUp') { event.preventDefault(); onMove(-1); }
@@ -1274,6 +1283,14 @@ function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, onDele
     <span className="pending-divider-handle" aria-hidden="true">•••</span>
     <button type="button" aria-label="删除 Pending 分隔符" title="删除分隔符" draggable={false} onClick={(event) => { event.stopPropagation(); onDelete(); }}>×</button>
   </article>;
+}
+
+function pendingDividerEdgeDrop(taskIndex: number, dividerIndex: number | null, clientY: number, rect: DOMRect): 'above' | 'below' | null {
+  if (dividerIndex === null || rect.height <= 0) return null;
+  const offset = (clientY - rect.top) / rect.height;
+  if (taskIndex === dividerIndex && offset < 0.62) return 'below';
+  if (taskIndex === dividerIndex - 1 && offset >= 0.38) return 'above';
+  return null;
 }
 
 function pendingDividerIndexAtPointer(container: HTMLElement, clientY: number, taskCount: number) {
@@ -1331,6 +1348,7 @@ export default function Home() {
   const [draggingId, setDraggingId] = useState('');
   const [draggingPendingDivider, setDraggingPendingDivider] = useState(false);
   const [pendingDividerDropIndex, setPendingDividerDropIndex] = useState<number | null>(null);
+  const [pendingDividerCatch, setPendingDividerCatch] = useState<{ taskId: string; side: 'above' | 'below' } | null>(null);
   const [dropTarget, setDropTarget] = useState<Status | ''>('');
   const [landedId, setLandedId] = useState('');
   const [impact, setImpact] = useState<{ title: string; subtitle: string; tier?: CountdownUrgency | 'action' } | null>(null);
@@ -1803,25 +1821,18 @@ export default function Home() {
     if (pendingDividerIndex === null) return;
     const source = tasks.find((task) => task.id === taskId);
     if (!source || source.isRecurrenceTemplate) return;
-    const belowTaskIds = settings.pendingDividerBelowTaskIds ?? [];
-    const ordered = [...grouped.pending];
-    const from = ordered.findIndex((task) => task.id === taskId);
-    const moving = from >= 0 ? ordered.splice(from, 1)[0] : transitionTask(source, 'pending');
-    const below = new Set(belowTaskIds);
-    below.delete(taskId);
-    const anchorIndex = ordered.findIndex((task) => below.has(task.id));
-    const insertionIndex = anchorIndex < 0 ? ordered.length : anchorIndex;
-    ordered.splice(insertionIndex, 0, moving);
-    const nextBelowTaskIds = ordered.slice(side === 'above' ? insertionIndex + 1 : insertionIndex).map((task) => task.id);
-    const ranks = new Map(ordered.map((task, index) => [task.id, index]));
+    const placed = orderTaskAtPendingDivider(grouped.pending.map((task) => task.id), settings.pendingDividerBelowTaskIds ?? [], taskId, side);
+    const moving = grouped.pending.find((task) => task.id === taskId) ?? transitionTask(source, 'pending');
+    const ranks = new Map(placed.orderedIds.map((id, index) => [id, index]));
     setTasks((current) => current.map((task) => {
       if (task.id === taskId) return { ...moving, manualOrder: ranks.get(taskId) ?? 0 };
       if (!task.isRecurrenceTemplate && task.status === 'pending') return { ...task, manualOrder: ranks.get(task.id) ?? null };
       return task;
     }));
-    setSettings((current) => ({ ...current, pendingDividerBelowTaskIds: nextBelowTaskIds }));
+    setSettings((current) => ({ ...current, pendingDividerBelowTaskIds: placed.belowTaskIds }));
     setLandedId(taskId);
     setDraggingId('');
+    setPendingDividerCatch(null);
     setPendingDividerDropIndex(null);
     setDropTarget('');
     setToast('任务位置已调整');
@@ -2248,7 +2259,7 @@ export default function Home() {
         ? dividerCollapsed && !draggingPendingDivider ? boardTasks.slice(0, dividerIndex ?? 0) : boardTasks
         : showAll[board.id] ? boardTasks : boardTasks.slice(0, VISIBLE_LIMIT[boardDensity][board.id]);
       const hiddenCount = hasPendingDivider ? boardTasks.length - (dividerIndex ?? 0) : boardTasks.length - visible.length;
-      const pendingDivider = hasPendingDivider ? <PendingDivider collapsed={dividerCollapsed} hiddenCount={hiddenCount} draggingTask={Boolean(draggingId)} dragging={draggingPendingDivider}
+      const pendingDivider = hasPendingDivider ? <PendingDivider collapsed={dividerCollapsed} hiddenCount={hiddenCount} draggingTask={Boolean(draggingId)} dragging={draggingPendingDivider} hintedSide={pendingDividerCatch?.side ?? null}
         onDelete={removePendingDivider}
         onMove={(direction) => movePendingDivider((dividerIndex ?? 0) + direction)}
         onDragStart={(event) => { setDraggingPendingDivider(true); setPendingDividerDropIndex(dividerIndex ?? 0); setDraggingId(''); setDropTarget(''); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', 'pending-divider'); }}
@@ -2289,9 +2300,9 @@ export default function Home() {
               ? pendingDividerDropIndex === taskIndex ? 'before'
                 : taskIndex === visible.length - 1 && pendingDividerDropIndex === visible.length ? 'after'
                   : undefined
-              : undefined}
+              : pendingDividerCatch?.taskId === task.id ? (pendingDividerCatch.side === 'below' ? 'before' : 'after') : undefined}
             onStart={() => moveTask(task.id, 'inProgress')}
-            onOpen={() => setDraft(task)} onDragStart={(event) => { setDraggingPendingDivider(false); setPendingDividerDropIndex(null); setDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => { setDraggingId(''); setPendingDividerDropIndex(null); setDropTarget(''); }}
+            onOpen={() => setDraft(task)} onDragStart={(event) => { setDraggingPendingDivider(false); setPendingDividerDropIndex(null); setPendingDividerCatch(null); setDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => { setDraggingId(''); setPendingDividerDropIndex(null); setPendingDividerCatch(null); setDropTarget(''); }}
             onDragOver={(event) => {
               if (draggingPendingDivider) {
                 if (board.id !== 'pending') return;
@@ -2303,6 +2314,17 @@ export default function Home() {
                 return;
               }
               event.preventDefault();
+              const edge = hasPendingDivider && task.status === 'pending' && draggingId !== task.id && tasks.some((item) => item.id === draggingId && item.status === 'pending')
+                ? pendingDividerEdgeDrop(taskIndex, dividerIndex, event.clientY, event.currentTarget.getBoundingClientRect())
+                : null;
+              setPendingDividerCatch((current) => {
+                const next = edge ? { taskId: task.id, side: edge } : null;
+                return current?.taskId === next?.taskId && current?.side === next?.side ? current : next;
+              });
+            }}
+            onDragLeave={(event) => {
+              if (event.currentTarget.contains(event.relatedTarget as Node)) return;
+              setPendingDividerCatch((current) => current?.taskId === task.id ? null : current);
             }}
             onDrop={(event) => {
               if (draggingPendingDivider) {
@@ -2317,6 +2339,13 @@ export default function Home() {
               event.stopPropagation();
               if (!draggingId) return;
               const source = tasks.find((item) => item.id === draggingId);
+              const edge = hasPendingDivider && source?.status === 'pending' && task.status === 'pending' && draggingId !== task.id
+                ? pendingDividerEdgeDrop(taskIndex, dividerIndex, event.clientY, event.currentTarget.getBoundingClientRect())
+                : null;
+              if (edge) {
+                moveTaskAcrossPendingDivider(draggingId, edge);
+                return;
+              }
               if (source?.status === task.status) reorderWithin(task.status, draggingId, task.id);
               else moveTask(draggingId, task.status);
             }} />

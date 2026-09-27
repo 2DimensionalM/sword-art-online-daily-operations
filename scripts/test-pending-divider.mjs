@@ -3,6 +3,7 @@ import test from 'node:test';
 import {
   belowTaskIdsAfterReorder,
   belowTaskIdsFromDividerIndex,
+  orderTaskAtPendingDivider,
   pendingDividerBelowTaskIdsFromRaw,
   releasePendingDividerTask,
   resolvePendingDividerIndex,
@@ -47,6 +48,33 @@ test('legacy numeric thresholds convert into the tasks below that position', () 
 test('an explicit divider task list wins over a leftover numeric threshold', () => {
   const below = pendingDividerBelowTaskIdsFromRaw({ pendingDividerBelowTaskIds: ['E'], pendingDividerIndex: 1 }, ['A', 'B', 'E']);
   assert.deepEqual(below, ['E']);
+});
+
+test('a task dropped under the divider becomes the first task below it', () => {
+  const pending = ['A', 'B', 'C', 'D'];
+  const below = ['C', 'D'];
+  const placed = orderTaskAtPendingDivider(pending, below, 'A', 'below');
+  assert.deepEqual(placed.orderedIds, ['B', 'A', 'C', 'D']);
+  assert.deepEqual(placed.belowTaskIds, ['A', 'C', 'D']);
+  assert.equal(resolvePendingDividerIndex(placed.orderedIds, placed.belowTaskIds), 1);
+});
+
+test('a task dropped above the divider becomes the last task above it', () => {
+  const pending = ['A', 'B', 'C', 'D'];
+  const below = ['C', 'D'];
+  const placed = orderTaskAtPendingDivider(pending, below, 'D', 'above');
+  assert.deepEqual(placed.orderedIds, ['A', 'B', 'D', 'C']);
+  assert.deepEqual(placed.belowTaskIds, ['C']);
+  assert.equal(resolvePendingDividerIndex(placed.orderedIds, placed.belowTaskIds), 3);
+});
+
+test('a task already below the divider can move to the first slot under it', () => {
+  const pending = ['A', 'B', 'C', 'D'];
+  const below = ['C', 'D'];
+  const placed = orderTaskAtPendingDivider(pending, below, 'D', 'below');
+  assert.deepEqual(placed.orderedIds, ['A', 'B', 'D', 'C']);
+  assert.deepEqual(placed.belowTaskIds, ['D', 'C']);
+  assert.equal(resolvePendingDividerIndex(placed.orderedIds, placed.belowTaskIds), 2);
 });
 
 test('reordering keeps every unmoved task on its original side of the divider', () => {

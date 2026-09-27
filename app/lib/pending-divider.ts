@@ -32,6 +32,19 @@ export function releasePendingDividerTask(belowTaskIds: string[] | null, taskId:
   return belowTaskIds.filter((id) => id !== taskId);
 }
 
+export function orderTaskAtPendingDivider(pendingIds: string[], belowTaskIds: string[], taskId: string, side: 'above' | 'below') {
+  const orderedIds = pendingIds.filter((id) => id !== taskId);
+  const below = new Set(belowTaskIds);
+  below.delete(taskId);
+  const anchorIndex = orderedIds.findIndex((id) => below.has(id));
+  const insertionIndex = anchorIndex < 0 ? orderedIds.length : anchorIndex;
+  orderedIds.splice(insertionIndex, 0, taskId);
+  return {
+    orderedIds,
+    belowTaskIds: orderedIds.slice(side === 'above' ? insertionIndex + 1 : insertionIndex),
+  };
+}
+
 export function belowTaskIdsAfterReorder(beforeIds: string[], belowTaskIds: string[], afterIds: string[], draggedId: string) {
   const below = new Set(belowTaskIds);
   const anchorId = afterIds.find((id) => id !== draggedId && below.has(id));
