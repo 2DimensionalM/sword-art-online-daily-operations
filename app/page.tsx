@@ -2138,6 +2138,46 @@ export default function Home() {
       .find((item) => item.dataset.scheduleTaskId === taskId);
     entry?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'nearest' });
   };
+  const stepSelectedDay = useCallback((delta: number) => {
+    const [year, month, day] = selectedDay.split('-').map(Number);
+    const nextDate = new Date(year, month - 1, day + delta, 12, 0, 0);
+    const nextKey = localDateKey(nextDate);
+    setSelectedDay(nextKey);
+    setLinkedScheduleTaskId('');
+    if (calendarMonth.getFullYear() !== nextDate.getFullYear() || calendarMonth.getMonth() !== nextDate.getMonth()) {
+      setCalendarMonth(new Date(nextDate.getFullYear(), nextDate.getMonth(), 1));
+    }
+  }, [selectedDay, calendarMonth]);
+  const selectedDayDate = useMemo(() => {
+    const [year, month, day] = selectedDay.split('-').map(Number);
+    return new Date(year, month - 1, day, 12, 0, 0);
+  }, [selectedDay]);
+  const selectedDayWeekdayIndex = selectedDayDate.getDay();
+  const selectedDayWeekday = WEEKDAYS[selectedDayWeekdayIndex];
+  const selectedDayWeekdayEn = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'][selectedDayWeekdayIndex];
+  const isSelectedDayToday = selectedDay === localDateKey(now);
+
+  useEffect(() => {
+    if (!dayAgendaOpen || draft || choiceField || dateField || sleepPickerField) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      const isInput = activeEl instanceof HTMLInputElement || activeEl instanceof HTMLTextAreaElement || activeEl?.getAttribute('contenteditable') === 'true';
+      if (isInput) return;
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        stepSelectedDay(-1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        stepSelectedDay(1);
+      } else if (event.key === 'Escape') {
+        event.preventDefault();
+        setDayAgendaOpen(false);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [dayAgendaOpen, draft, choiceField, dateField, sleepPickerField, stepSelectedDay]);
+
   const activeNav = navItems.find((item) => item.id === view)!;
   const activeCountdowns = missionTasks.flatMap((task) => countdownSignals(task, now)).sort(compareCountdownSignals);
   const visibleCountdowns = activeCountdowns.slice(0, 2);
@@ -2488,7 +2528,53 @@ export default function Home() {
 
     {dayAgendaOpen && <div className="modal-backdrop day-schedule-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setDayAgendaOpen(false); }}>
       <section className="day-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="day-schedule-title">
-        <header><div><span>SCHOOL LIFE / DAILY FLOW</span><h2 id="day-schedule-title">{selectedDay.replaceAll('-', ' / ')}</h2><p>{selectedDayTasks.length} MISSIONS · {daySleepBlocks.length} REST SIGNALS · 今天如何度过？</p></div><button type="button" className="close-button" aria-label="关闭 DAILY FLOW" onClick={() => setDayAgendaOpen(false)}>×</button></header>
+        <header>
+          <div className="day-schedule-header-info">
+            <div className="day-schedule-meta">
+              <span className="day-schedule-channel-tag">SCHOOL LIFE / DAILY FLOW</span>
+              {isSelectedDayToday && <span className="day-schedule-today-badge">TODAY · 今日</span>}
+            </div>
+            <div className="day-schedule-title-row">
+              <h2 id="day-schedule-title">{selectedDay.replaceAll('-', ' / ')}</h2>
+              <span className="day-schedule-weekday-tag">
+                <em>{selectedDayWeekdayEn}</em>
+                <b>周{selectedDayWeekday}</b>
+              </span>
+            </div>
+            <p>{selectedDayTasks.length} MISSIONS · {daySleepBlocks.length} REST SIGNALS · 今天如何度过？</p>
+          </div>
+          <div className="day-schedule-header-actions">
+            <nav className="day-nav-group" aria-label="日程日期翻页">
+              <button
+                type="button"
+                className="day-nav-button day-nav-prev"
+                onClick={() => stepSelectedDay(-1)}
+                title="切换至前一日（前日） · [Left Arrow]"
+                aria-label="切换至前一日（前日）"
+              >
+                <i className="day-nav-arrow" aria-hidden="true">◀</i>
+                <span className="day-nav-copy">
+                  <strong>PREV DAY</strong>
+                  <small>前日</small>
+                </span>
+              </button>
+              <button
+                type="button"
+                className="day-nav-button day-nav-next"
+                onClick={() => stepSelectedDay(1)}
+                title="切换至翌日（翌日） · [Right Arrow]"
+                aria-label="切换至翌日（翌日）"
+              >
+                <span className="day-nav-copy">
+                  <strong>NEXT DAY</strong>
+                  <small>翌日</small>
+                </span>
+                <i className="day-nav-arrow" aria-hidden="true">▶</i>
+              </button>
+            </nav>
+            <button type="button" className="close-button" aria-label="关闭 DAILY FLOW" onClick={() => setDayAgendaOpen(false)}>×</button>
+          </div>
+        </header>
         <div className="day-schedule-body"><section className="schedule-map"><header><span>TIME DISTRIBUTION</span><strong>全天任务与睡眠分布</strong></header><div className="schedule-stage">
           <div className="schedule-hours"><span>02</span><span>07</span><span>12</span><span>18</span><span>00</span><span>02</span><b>OFF<br />02—07</b></div>
           <div className="schedule-lanes">

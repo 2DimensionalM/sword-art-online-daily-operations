@@ -222,6 +222,7 @@ Do not place the lockup on a busy photograph, recolor individual letters arbitra
 - Concurrent windows automatically receive separate lanes. The compressed OFF band preserves selected-day midnight-to-morning tasks at the top. Within one DAILY FLOW window, each In Progress or Completed interval is one continuous block even when it crosses midnight; never split it at `00:00`. On the following selected date, the same cross-day interval resumes from the top with an explicit continuation treatment.
 - Task-block labels are all-or-nothing. When available height or lane width cannot contain the complete time/title treatment, hide that treatment and retain an accessible label on the interactive block; never show vertically clipped half-text.
 - Timeline rules and lane rules use the same date-relative coordinate system. Grid strokes must remain continuous across the compressed band boundary rather than producing a stitched or broken-line illusion.
+- The header integrates tactical calendar day stepping controls (`PREV DAY / 前日` and `NEXT DAY / 翌日`) within a skewed dual-button bracket, adopting canonical Persona/P4G time-transition terminology rather than generic day labels. Buttons feature directional arrow chips, bold uppercase tactical cues, high-contrast hover inversion (ink to signal yellow), press compression, responsive touch targets, weekday badge telemetry (`[MON] 周一`), and keyboard arrow navigation (`ArrowLeft` / `ArrowRight`).
 
 ### Form controls
 
