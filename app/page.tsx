@@ -298,12 +298,8 @@ function ensureRecurrenceTemplates(tasks: Task[]) {
     if (task.isRecurrenceTemplate) return task;
     const seriesKey = task.seriesId || task.id;
     const recurrenceStartTime = task.recurrence === 'none' ? '' : startTimeBySeries.get(seriesKey)?.time ?? task.recurrenceStartTime;
-    const generatedDate = /^\d{4}-\d{2}-\d{2}$/.test(task.lastGeneratedDate) ? new Date(`${task.lastGeneratedDate}T00:00:00`) : new Date();
-    const startedAt = task.recurrence !== 'none' && sourceBySeries.get(seriesKey)?.id === task.id && task.status === 'pending' && !task.startedAt && recurrenceStartTime
-      ? dateAtLocalTime(generatedDate, recurrenceStartTime)
-      : task.startedAt;
-    if (!task.seriesHead && task.recurrenceStartTime === recurrenceStartTime && task.startedAt === startedAt) return task;
-    return { ...task, seriesHead: false, recurrenceStartTime, startedAt };
+    if (!task.seriesHead && task.recurrenceStartTime === recurrenceStartTime) return task;
+    return { ...task, seriesHead: false, recurrenceStartTime };
   });
   const templates = [...sourceBySeries.entries()].flatMap(([seriesId, source]) => {
     if (templateSeries.has(seriesId)) return [];
