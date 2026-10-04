@@ -1393,7 +1393,7 @@ export default function Home() {
   const [pendingDividerCatch, setPendingDividerCatch] = useState<{ taskId: string; side: 'above' | 'below' } | null>(null);
   const [dropTarget, setDropTarget] = useState<Status | ''>('');
   const [landedId, setLandedId] = useState('');
-  const [impact, setImpact] = useState<{ title: string; subtitle: string; tier?: CountdownUrgency | 'action' } | null>(null);
+  const [impact, setImpact] = useState<{ title: string; subtitle: string; tier?: CountdownUrgency | 'action'; origin?: 'countdown' } | null>(null);
   const [draft, setDraft] = useState<Task | null>(null);
   const [choiceField, setChoiceField] = useState<ChoiceFieldName | null>(null);
   const [dateField, setDateField] = useState<DateFieldName | null>(null);
@@ -1696,13 +1696,14 @@ export default function Home() {
     }
     const changed = reminding.find((signal) => reminderBands.current.get(`${signal.task.id}:${signal.kind}`) !== signal.urgency);
     for (const signal of reminding) reminderBands.current.set(`${signal.task.id}:${signal.kind}`, signal.urgency);
-    if (!changed || changed.urgency === 'oneHour' || changed.urgency === 'halfHour') return;
+    if (!changed || changed.urgency === 'oneHour' || changed.urgency === 'halfHour' || view === 'focus') return;
     setImpact({
       title: countdownImpactTitle(changed),
       subtitle: `${changed.task.title} · ${countdownSignalLabel(changed)}`,
       tier: changed.urgency,
+      origin: 'countdown',
     });
-  }, [clock, hydrated, missionTasks]);
+  }, [clock, hydrated, missionTasks, view]);
 
   const grouped = useMemo(() => boardMeta.reduce((result, board) => {
     const today = localDateKey(new Date());
@@ -2622,7 +2623,7 @@ export default function Home() {
     {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
     {cancellationRemovalTarget && <CancellationRemovalDialog event={cancellationRemovalTarget} busy={cancellationRemovalBusy} onCancel={() => setCancellationRemovalTarget(null)} onConfirm={() => void removeCancellationEvent()} />}
 
-    {impact && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
+    {impact && !(view === 'focus' && impact.origin === 'countdown') && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
 
     {dayAgendaOpen && <div className="modal-backdrop day-schedule-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setDayAgendaOpen(false); }}>
       <section className="day-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="day-schedule-title">
