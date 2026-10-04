@@ -15,14 +15,15 @@ test('eligibility excludes work, pending, completed and recurrence templates', (
   assert.deepEqual(eligibleFocusTasks(tasks).map((item) => item.id), ['a', 'b']);
 });
 
-test('day statistics split midnight, count shared time once, and never infer recovery', () => {
+test('day statistics split midnight, count shared time once, and count distraction events', () => {
   const start = new Date(2026, 8, 26, 23, 50).getTime();
   const end = new Date(2026, 8, 27, 0, 10).getTime();
-  const session = { startedAt: new Date(start).toISOString(), focusEndedAt: new Date(end).toISOString(), tasks: [task('a'), task('b')], drifts: [{ at: new Date(start + 60000).toISOString(), returnedAt: null }] };
+  const session = { startedAt: new Date(start).toISOString(), focusEndedAt: new Date(end).toISOString(), tasks: [task('a'), task('b')], drifts: [{ at: new Date(start + 60000).toISOString() }] };
   assert.equal(focusDuration(session, end + 3600000), 1200000);
   assert.equal(focusDayStats([session], new Date(start), end).total, 600000);
   assert.equal(focusDayStats([session], new Date(end), end).total, 600000);
-  assert.equal(focusDayStats([session], new Date(start), end).returns, 0);
+  assert.equal(focusDayStats([session], new Date(start), end).drifts, 1);
+  assert.equal('returns' in focusDayStats([session], new Date(start), end), false);
   assert.equal(focusClock(3600000), '60:00');
   assert.equal(focusClock(-1), '00:00');
 });
@@ -77,14 +78,24 @@ test('focus API preserves planner data, validates transitions, deduplicates retr
     const retried = await request('/v1/focus', 'POST', { requestId: driftRequestId, expectedRevision: 0, action: 'drift', sessionId });
     assert.equal(retried.body.revision, driftRevision);
     assert.equal(retried.body.sessions[0].drifts.length, 1);
-    await command('recover');
-    assert.ok(state.sessions[0].drifts[0].returnedAt);
+    assert.deepEqual(Object.keys(state.sessions[0].drifts[0]), ['at']);
     assert.equal((await command('recover')).status, 400);
     await command('drift');
-    await stop(); await start();
+    await stop();
+    const legacyDb = new DatabaseSync(databasePath);
+    const legacyRow = legacyDb.prepare('SELECT id, payload_json FROM focus_sessions WHERE id = ?').get(sessionId);
+    const legacySession = JSON.parse(legacyRow.payload_json);
+    legacySession.drifts[0].returnedAt = new Date().toISOString();
+    legacyDb.prepare('UPDATE focus_sessions SET payload_json = ? WHERE id = ?').run(JSON.stringify(legacySession), sessionId);
+    legacyDb.prepare("DELETE FROM app_meta WHERE key = 'schema-focus-drift-only-v1'").run();
+    legacyDb.close();
+    const revisionBeforeMigration = state.revision;
+    await start();
     const restored = (await request('/v1/focus')).body;
-    assert.deepEqual(restored.sessions, state.sessions);
-    assert.equal(restored.revision, state.revision);
+    assert.equal(restored.sessions[0].drifts.length, 2);
+    assert.ok(restored.sessions[0].drifts.every((drift) => Object.keys(drift).length === 1 && typeof drift.at === 'string'));
+    assert.equal(restored.revision, revisionBeforeMigration + 1);
+    state = restored;
     await command('break');
     const focusEndedAt = state.sessions[0].focusEndedAt;
     assert.ok(focusEndedAt);
@@ -129,7 +140,8 @@ test('focus API preserves planner data, validates transitions, deduplicates retr
     assert.equal((await command('start', { taskIds: ['a'] })).status, 400);
     assert.equal((await fetch(`${base}/v1/focus`, { headers: { Origin: 'https://example.com' } })).status, 403);
     const db = new DatabaseSync(databasePath, { readOnly: true });
-    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM migration_backups').get().n, 1);
+    assert.equal(db.prepare("SELECT COUNT(*) AS n FROM migration_backups WHERE source = 'schema-focus-drift-only-v1'").get().n, 1);
+    assert.equal(db.prepare('SELECT COUNT(*) AS n FROM migration_backups').get().n, 2);
     db.close();
   } finally {
     if (child && child.exitCode === null) await stop();

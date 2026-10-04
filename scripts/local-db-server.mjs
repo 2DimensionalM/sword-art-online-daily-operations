@@ -506,6 +506,36 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS focus_commands (id TEXT PRIMARY KEY, created_at TEXT NOT NULL);
 `);
 
+// One-time focus migration: distraction clicks are complete events and no longer track a return.
+const focusDriftOnlyMigrationKey = 'schema-focus-drift-only-v1';
+if (!db.prepare('SELECT value FROM app_meta WHERE key = ?').get(focusDriftOnlyMigrationKey)) {
+  const legacyRows = db.prepare('SELECT id, payload_json FROM focus_sessions ORDER BY started_at, rowid').all();
+  const migratedRows = legacyRows.flatMap((row) => {
+    const session = JSON.parse(row.payload_json);
+    const drifts = Array.isArray(session.drifts) ? session.drifts : [];
+    if (!drifts.some((drift) => drift && Object.hasOwn(drift, 'returnedAt'))) return [];
+    return [{ id: row.id, payload: { ...session, drifts: drifts.map((drift) => ({ at: drift.at })) } }];
+  });
+  db.exec('BEGIN IMMEDIATE');
+  try {
+    if (migratedRows.length) {
+      db.prepare('INSERT INTO migration_backups (source, payload_json, imported_at) VALUES (?, ?, ?)').run(
+        focusDriftOnlyMigrationKey,
+        JSON.stringify({ sessions: legacyRows.map((row) => JSON.parse(row.payload_json)) }),
+        new Date().toISOString(),
+      );
+      const updateSession = db.prepare('UPDATE focus_sessions SET payload_json = ? WHERE id = ?');
+      for (const row of migratedRows) updateSession.run(JSON.stringify(row.payload), row.id);
+      db.prepare('UPDATE focus_control SET revision = revision + 1 WHERE id = 1').run();
+    }
+    db.prepare('INSERT INTO app_meta (key, value) VALUES (?, ?)').run(focusDriftOnlyMigrationKey, '1');
+    db.exec('COMMIT');
+  } catch (error) {
+    db.exec('ROLLBACK');
+    throw error;
+  }
+}
+
 function saveFocusSession(session) {
   db.prepare(`INSERT INTO focus_sessions VALUES (?, ?, ?, ?)
     ON CONFLICT(id) DO UPDATE SET ended_at = excluded.ended_at, payload_json = excluded.payload_json`)
@@ -596,9 +626,7 @@ function focusCommand(body) {
     } else {
       if (!active || active.id !== body.sessionId) throw new Error('计时已变化，请刷新');
       if (body.action === 'drift' && active.phase === 'focus') {
-        active.drifts.push({ at, returnedAt: null });
-      } else if (body.action === 'recover' && active.phase === 'focus' && active.drifts.length && !active.drifts.at(-1).returnedAt) {
-        active.drifts.at(-1).returnedAt = at;
+        active.drifts.push({ at });
       } else if (body.action === 'break' && active.phase === 'focus') {
         active.focusEndedAt = at;
         active.phase = 'break';

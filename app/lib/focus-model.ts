@@ -9,10 +9,10 @@ export type FocusSession = {
   breakMinutes: number;
   tasks: (Pick<FocusTask, 'id' | 'title' | 'taskType'> & { unlinkedAt?: string; finalStatus?: string })[];
   endReason?: 'tasks-inactive';
-  drifts: { at: string; returnedAt: string | null }[];
+  drifts: { at: string }[];
 };
 export type FocusState = { eligibleTasks: FocusTask[]; revision: number; settings: { minimumMinutes: number; breakMinutes: number }; sessions: FocusSession[]; serverNow: string };
-export type FocusCommand = { requestId: string; expectedRevision: number; action: 'start' | 'resume' | 'drift' | 'recover' | 'break' | 'finish' | 'settings' | 'deleteSession'; targetSessionId?: string; sessionId?: string; taskIds?: string[]; minimumMinutes?: number; breakMinutes?: number };
+export type FocusCommand = { requestId: string; expectedRevision: number; action: 'start' | 'resume' | 'drift' | 'break' | 'finish' | 'settings' | 'deleteSession'; targetSessionId?: string; sessionId?: string; taskIds?: string[]; minimumMinutes?: number; breakMinutes?: number };
 
 export function eligibleFocusTasks(tasks: FocusTask[]) {
   return tasks.filter((task) => task.status === 'inProgress' && !task.isRecurrenceTemplate && /(学业|学习|复习|证书)/u.test(task.taskType) && !/工作/u.test(task.taskType));
@@ -40,13 +40,12 @@ export function focusDayStats(sessions: FocusSession[], day: Date, now: number) 
   let longest = 0;
   let rounds = 0;
   let drifts = 0;
-  let returns = 0;
   for (const session of sessions) {
     const duration = Math.max(0, Math.min(end, session.focusEndedAt ? Date.parse(session.focusEndedAt) : now) - Math.max(start, Date.parse(session.startedAt)));
     if (duration > 0) { total += duration; longest = Math.max(longest, duration); rounds += 1; }
     for (const drift of session.drifts) {
-      if (Date.parse(drift.at) >= start && Date.parse(drift.at) < end) { drifts += 1; if (drift.returnedAt) returns += 1; }
+      if (Date.parse(drift.at) >= start && Date.parse(drift.at) < end) drifts += 1;
     }
   }
-  return { total, longest, rounds, drifts, returns, average: rounds ? total / rounds : 0 };
+  return { total, longest, rounds, drifts, average: rounds ? total / rounds : 0 };
 }

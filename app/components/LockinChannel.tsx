@@ -6,7 +6,7 @@ import { loadFocusState, sendFocusCommand } from '../lib/planner-store';
 import { LockinDialog } from './LockinDialog';
 import { LockinRecords } from './LockinRecords';
 
-type Feedback = { kind: 'lock' | 'rest' | 'return' | 'start'; id: number };
+type Feedback = { kind: 'lock' | 'rest' | 'start'; id: number };
 const CURTAIN_IDLE_MS = 30_000;
 
 export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask: (id: string) => void; onOpenBoard: () => void }) {
@@ -78,7 +78,6 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
         setError('');
         if (payload.action === 'drift') setFeedback({ kind: 'lock', id: result.state.revision });
         if (['start', 'resume'].includes(payload.action)) setFeedback({ kind: 'start', id: result.state.revision });
-        if (payload.action === 'recover') setFeedback({ kind: 'return', id: result.state.revision });
         if (payload.action === 'break') setFeedback({ kind: 'rest', id: result.state.revision });
         if (payload.action === 'settings') setSettingsOpen(false);
         if (payload.action === 'deleteSession') setDeleteTarget(null);
@@ -94,8 +93,6 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
   const active = state?.sessions.find((session) => !session.endedAt);
   const focusing = active?.phase === 'focus';
   const resting = active?.phase === 'break';
-  const lastDrift = active?.drifts.at(-1);
-  const recovering = focusing && lastDrift && !lastDrift.returnedAt;
   const elapsed = active ? focusDuration(active, now) : 0;
   const breakElapsed = resting ? Math.max(0, now - Date.parse(active.focusEndedAt!)) : 0;
   const breakRemaining = active ? Math.max(0, active.breakMinutes * 60000 - breakElapsed) : 0;
@@ -137,15 +134,15 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
           <div className={`lockin-screen ${curtainEnabled && curtainClosed ? 'is-veiled' : ''}`}>
             <div className="lockin-reticle" aria-hidden="true"><i /><i /><i /><i /><b /></div>
             <div className="lockin-time" role="timer" aria-label={resting ? '休息倒计时' : '本轮计时'}>{focusClock(resting ? breakRemaining : elapsed)}</div>
-            <span className="lockin-cue">{resting ? breakRemaining ? '慢慢来。' : '准备好了就回来。' : recovering ? '发现了。现在，回来。' : focusing ? minimumMet ? '状态正好，继续。' : '就在这一刻。' : last?.endReason === 'tasks-inactive' ? '本轮已停计 ✓' : '准备好，锁定。'}</span>
+            <span className="lockin-cue">{resting ? breakRemaining ? '慢慢来。' : '准备好了就回来。' : focusing ? minimumMet ? '状态正好，继续。' : '就在这一刻。' : last?.endReason === 'tasks-inactive' ? '本轮已停计 ✓' : '准备好，锁定。'}</span>
             <div className="lockin-curtain" aria-hidden="true"><div className="lockin-curtain-inner"><span className="lockin-curtain-kicker">LOCKIN CHANNEL / {resting ? 'RESET' : 'ON AIR'}</span><span className="lockin-curtain-mark">◈</span><strong>{resting ? '安心休息' : '此刻，专注'}</strong><small>时间仍在继续 · 交互后查看</small></div><span className="lockin-curtain-hem" /></div>
           </div>
           <div className="lockin-meter"><span>{resting ? 'RESET' : 'TARGET'}</span><div aria-hidden="true"><i style={{ width: `${progress}%` }} /></div><b>{resting ? active.breakMinutes : active?.minimumMinutes ?? state.settings.minimumMinutes}<small> MIN</small></b></div>
           <div className="lockin-actions">
             {focusing ? <><button className="lockin-primary" disabled={disabled} onClick={() => void command('drift')}><b>↩</b><span>分心了<small>LOCK BACK IN</small></span></button><button disabled={disabled} onClick={() => void command('break')}><b>Ⅱ</b><span>休息一下<small>TAKE A BREAK</small></span></button></> : <button className="lockin-primary" disabled={disabled || !selected.length} onClick={() => void command(resting ? 'resume' : 'start', { taskIds: selected.map((task) => task.id) })}><b>▶</b><span>{resting ? '我准备好了' : '开始专注'}<small>LOCK IN</small></span></button>}
           </div>
-          <div className="lockin-session-strip">{recovering ? <button className="lockin-recover" disabled={disabled} onClick={() => void command('recover')}>我回来了 ✓</button> : <span title="发现分心 / 已确认拉回">↩ {active?.drifts.length ?? 0}<i />✓ {active?.drifts.filter((drift) => drift.returnedAt).length ?? 0}</span>}{active ? <button disabled={disabled} onClick={() => void command('finish')}>结束本轮 ↗</button> : <span />}</div>
-          {feedback && <div key={feedback.id} className={`lockin-impact impact-${feedback.kind}`} role="status"><div className="lockin-impact-rings" aria-hidden="true"><i /><i /><i /></div><div className="lockin-impact-copy"><span>{feedback.kind === 'rest' ? 'YOU EARNED A BREATHER' : feedback.kind === 'return' ? 'NICE COMEBACK' : feedback.kind === 'start' ? 'THIS IS YOUR MOMENT' : 'GOOD CATCH'}</span><strong>{feedback.kind === 'rest' ? 'BREATHE.' : feedback.kind === 'return' ? 'BACK IN!' : 'LOCK IN!'}</strong><small>{feedback.kind === 'rest' ? '放松一下。' : feedback.kind === 'return' ? '回来，就是进步。' : '把注意力，交还给自己。'}</small></div></div>}
+          <div className="lockin-session-strip"><span title="发现分心次数">↩ {active?.drifts.length ?? 0}</span>{active ? <button disabled={disabled} onClick={() => void command('finish')}>结束本轮 ↗</button> : <span />}</div>
+          {feedback && <div key={feedback.id} className={`lockin-impact impact-${feedback.kind}`} role="status"><div className="lockin-impact-rings" aria-hidden="true"><i /><i /><i /></div><div className="lockin-impact-copy"><span>{feedback.kind === 'rest' ? 'YOU EARNED A BREATHER' : feedback.kind === 'start' ? 'THIS IS YOUR MOMENT' : 'GOOD CATCH'}</span><strong>{feedback.kind === 'rest' ? 'BREATHE.' : 'LOCK IN!'}</strong><small>{feedback.kind === 'rest' ? '放松一下。' : '觉察到，就回来。'}</small></div></div>}
         </section>
         <aside className="lockin-links" aria-label="关联任务">
           <header><div><span>IN PLAY</span><h3>当前任务</h3></div><strong>{String(linked.length).padStart(2, '0')}</strong></header>

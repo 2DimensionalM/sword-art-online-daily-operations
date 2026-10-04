@@ -128,7 +128,6 @@ html:has(.lockin-channel[data-expanded="false"]) { overflow:hidden; scrollbar-gu
 .lockin-impact.impact-rest { background:var(--color-paper); animation:lockin-rest-in 900ms both; }
 .impact-rest .lockin-impact-rings i { border-color:var(--color-blue); animation:lockin-exhale 900ms ease-out both; }
 .impact-rest .lockin-impact-copy { transform:rotate(0); animation:lockin-rest-copy 900ms ease-out both; }
-.impact-return .lockin-impact-rings i { border-radius:0; transform:rotate(45deg); }
 @keyframes lockin-impact-in { 0% { clip-path:polygon(0 50%,100% 40%,100% 45%,0 55%); } 18%,78% { clip-path:polygon(0 0,100% 0,100% 100%,0 100%); opacity:1; } 100% { clip-path:polygon(0 47%,100% 47%,100% 53%,0 53%); opacity:0; } }
 @keyframes lockin-word-hit { 0% { opacity:0; transform:translateX(-35px) rotate(-8deg) scale(1.15); } 24%,76% { opacity:1; transform:translateX(0) rotate(-5deg) scale(1); } 100% { opacity:0; transform:translateX(12px) rotate(-5deg); } }
 @keyframes lockin-acquire { 0% { transform:scale(1.65) rotate(25deg); } 32%,78% { transform:scale(1) rotate(0); } 100% { transform:scale(.9); } }
