@@ -1437,6 +1437,7 @@ export default function Home() {
   const [cancellationRemovalBusy, setCancellationRemovalBusy] = useState(false);
   const [repeaterDraggingId, setRepeaterDraggingId] = useState('');
   const missionTasks = useMemo(() => tasks.filter((task) => !task.isRecurrenceTemplate), [tasks]);
+  const taskTitles = useMemo(() => new Map(missionTasks.map((task) => [task.id, task.title])), [missionTasks]);
 
   useEffect(() => {
     const savedView = window.sessionStorage.getItem(VIEW_SESSION_KEY);
@@ -2329,7 +2330,7 @@ export default function Home() {
       {view !== 'settings' && view !== 'sleep' && view !== 'signals' && view !== 'focus' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
     </header>
 
-    {view === 'focus' && <LockinChannel onCompleteTask={(id) => moveTask(id, 'completed')} onOpenBoard={() => navigateTo('board')} />}
+    {view === 'focus' && <LockinChannel taskTitles={taskTitles} onCompleteTask={(id) => moveTask(id, 'completed')} onOpenBoard={() => navigateTo('board')} />}
 
     {view === 'signals' && <SignalRoom signals={signals} taskTypes={settings.taskTypes.map((item) => item.value)} onDirtyChange={setSignalDirty} />}
 

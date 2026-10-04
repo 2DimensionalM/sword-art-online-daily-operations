@@ -9,7 +9,7 @@ import { LockinRecords } from './LockinRecords';
 type Feedback = { kind: 'lock' | 'rest' | 'start'; id: number };
 const CURTAIN_IDLE_MS = 30_000;
 
-export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask: (id: string) => void; onOpenBoard: () => void }) {
+export function LockinChannel({ taskTitles, onCompleteTask, onOpenBoard }: { taskTitles: ReadonlyMap<string, string>; onCompleteTask: (id: string) => void; onOpenBoard: () => void }) {
   const [state, setState] = useState<FocusState | null>(null);
   const [now, setNow] = useState(0);
   const [error, setError] = useState('');
@@ -162,9 +162,9 @@ export function LockinChannel({ onCompleteTask, onOpenBoard }: { onCompleteTask:
         </aside>
       </div>
       <nav className="lockin-drawers" aria-label="专注记录"><button aria-expanded={section === 'today'} aria-controls="lockin-record-panel" onClick={() => setSection(section === 'today' ? null : 'today')}><span>今日记录</span><b>ATTENTION</b><i>{section === 'today' ? '−' : '＋'}</i></button><button aria-expanded={section === 'archive'} aria-controls="lockin-record-panel" onClick={() => setSection(section === 'archive' ? null : 'archive')}><span>历史记录</span><b>SESSION ARCHIVE</b><i>{section === 'archive' ? '−' : '＋'}</i></button></nav>
-      {section && <LockinRecords section={section} sessions={state.sessions} now={now} onDelete={setDeleteTarget} />}
+      {section && <LockinRecords section={section} sessions={state.sessions} taskTitles={taskTitles} now={now} onDelete={setDeleteTarget} />}
       {settingsOpen && <LockinDialog title="调整你的节奏" label="TUNE YOUR PACE" onClose={() => setSettingsOpen(false)}><form onSubmit={(event) => { event.preventDefault(); void command('settings', { minimumMinutes: Number(minimum), breakMinutes: Number(rest) }); }}><div className="lockin-setting-fields"><label>起步 / 分钟<input type="number" min="1" max="180" required value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label><label>休息 / 分钟<input type="number" min="1" max="180" required value={rest} onChange={(event) => setRest(event.target.value)} /></label></div><small>下一轮生效</small><footer><button type="button" onClick={() => setSettingsOpen(false)}>返回</button><button disabled={disabled}>确定 →</button></footer></form></LockinDialog>}
-      {deleteTarget && <LockinDialog title="删除这次记录？" label="ERASE RECORD" onClose={() => { if (!busy) setDeleteTarget(null); }}><p className="lockin-delete-summary">{deleteTarget.tasks.map((task) => task.title).join(' / ')}<strong>{focusClock(focusDuration(deleteTarget, now))}</strong></p><small>仅删除计时记录，任务保留。</small>{error && <p role="alert">{error}</p>}<footer><button autoFocus disabled={busy} onClick={() => setDeleteTarget(null)}>保留</button><button className="is-destructive" disabled={busy} onClick={() => void command('deleteSession', { targetSessionId: deleteTarget.id })}>删除 ×</button></footer></LockinDialog>}
+      {deleteTarget && <LockinDialog title="删除这次记录？" label="ERASE RECORD" onClose={() => { if (!busy) setDeleteTarget(null); }}><p className="lockin-delete-summary">{deleteTarget.tasks.map((task) => taskTitles.get(task.id) ?? task.title).join(' / ')}<strong>{focusClock(focusDuration(deleteTarget, now))}</strong></p><small>仅删除计时记录，任务保留。</small>{error && <p role="alert">{error}</p>}<footer><button autoFocus disabled={busy} onClick={() => setDeleteTarget(null)}>保留</button><button className="is-destructive" disabled={busy} onClick={() => void command('deleteSession', { targetSessionId: deleteTarget.id })}>删除 ×</button></footer></LockinDialog>}
     </>}
   </section>;
 }

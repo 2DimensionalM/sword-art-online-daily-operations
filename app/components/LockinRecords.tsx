@@ -2,7 +2,7 @@
 
 import { focusClock, focusDayKey, focusDayStats, focusDuration, type FocusSession } from '../lib/focus-model';
 
-export function LockinRecords({ sessions, now, section, onDelete }: { sessions: FocusSession[]; now: number; section: 'today' | 'archive'; onDelete: (session: FocusSession) => void }) {
+export function LockinRecords({ sessions, taskTitles, now, section, onDelete }: { sessions: FocusSession[]; taskTitles: ReadonlyMap<string, string>; now: number; section: 'today' | 'archive'; onDelete: (session: FocusSession) => void }) {
   const today = focusDayStats(sessions, new Date(now), now);
   const days = Array.from({ length: 7 }, (_, index) => {
     const day = new Date(now); day.setDate(day.getDate() - 6 + index);
@@ -12,9 +12,9 @@ export function LockinRecords({ sessions, now, section, onDelete }: { sessions: 
   const history = sessions.filter((session) => session.endedAt);
   if (section === 'archive') return <section id="lockin-record-panel" className="lockin-record-panel" aria-label="历史记录">
     {!history.length ? <p className="lockin-empty-record">NO RECORDS YET</p> : history.map((session) => <article className="lockin-record" key={session.id}>
-      <details><summary><time>{new Date(session.startedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time><strong>{session.tasks.map((task) => task.title).join(' / ')}</strong><b>{focusClock(focusDuration(session, now))}</b><span>↩ {session.drifts.length}</span></summary>
+      <details><summary><time>{new Date(session.startedAt).toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}</time><strong>{session.tasks.map((task) => taskTitles.get(task.id) ?? task.title).join(' / ')}</strong><b>{focusClock(focusDuration(session, now))}</b><span>↩ {session.drifts.length}</span></summary>
         <div className="lockin-record-detail">
-          {session.tasks.map((task) => <p key={task.id}>{task.title}<b>{focusClock(Math.max(0, Math.min(Date.parse(task.unlinkedAt ?? session.focusEndedAt!), Date.parse(session.focusEndedAt!)) - Date.parse(session.startedAt)))}</b></p>)}
+          {session.tasks.map((task) => <p key={task.id}>{taskTitles.get(task.id) ?? task.title}<b>{focusClock(Math.max(0, Math.min(Date.parse(task.unlinkedAt ?? session.focusEndedAt!), Date.parse(session.focusEndedAt!)) - Date.parse(session.startedAt)))}</b></p>)}
           {session.drifts.map((drift, index) => <p key={index}>↩ {focusClock(Date.parse(drift.at) - Date.parse(session.startedAt))}<span>发现分心</span></p>)}
         </div>
       </details><button className="lockin-delete" aria-label={`删除记录 ${new Date(session.startedAt).toLocaleString('zh-CN')}`} onClick={() => onDelete(session)}>×</button>
