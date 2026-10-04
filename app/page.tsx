@@ -94,6 +94,7 @@ const VIEW_SESSION_KEY = 'sao-planner-active-view-v1';
 const DIALOG_SESSION_KEY = 'sao-planner-dialog-state-v1';
 const PENDING_SORT_SESSION_KEY = 'sao-planner-pending-sort-v1';
 const BOARD_DENSITY_SESSION_KEY = 'sao-planner-board-density-v1';
+const PENDING_HIDE_DROP_TARGET = '__pending-hide-drop-target__';
 const DASHBOARD_SCALE_SESSION_KEY = 'sao-dashboard-campaign-scale-v1';
 const DASHBOARD_PERIOD_SESSION_KEY = 'sao-dashboard-campaign-period-v1';
 const SLEEP_STANDARD_LIMIT = 8;
@@ -1289,10 +1290,11 @@ function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, hinted
   const shownSide = dropSide ?? hintedSide ?? null;
   const updateDropSide = (event: React.DragEvent<HTMLElement>) => {
     if (!draggingTask) return;
+    if (collapsed) { setDropSide('below'); return; }
     const rect = event.currentTarget.getBoundingClientRect();
     setDropSide(event.clientY < rect.top + rect.height / 2 ? 'above' : 'below');
   };
-  return <article className={`pending-divider ${collapsed ? 'is-collapsed' : 'is-expanded'} ${dragging ? 'is-dragging' : ''} ${shownSide ? `drop-${shownSide}` : ''}`}
+  return <article className={`pending-divider ${collapsed ? 'is-collapsed' : 'is-expanded'} ${draggingTask ? 'has-task-drag' : ''} ${dragging ? 'is-dragging' : ''} ${shownSide ? `drop-${shownSide}` : ''}`}
     draggable role="button" aria-roledescription="可拖拽分隔符" aria-label={`Pending 可见分隔符，以下 ${hiddenCount} 个任务${collapsed ? '已隐藏' : '已展开'}`} tabIndex={0}
     onDragStart={onDragStart} onDragEnd={() => { setDropSide(null); onDragEnd(); }}
     onDragOver={(event) => { if (!draggingTask) return; event.preventDefault(); event.stopPropagation(); updateDropSide(event); }}
@@ -1301,8 +1303,11 @@ function PendingDivider({ collapsed, hiddenCount, draggingTask, dragging, hinted
       if (!draggingTask) return;
       event.preventDefault();
       event.stopPropagation();
-      const rect = event.currentTarget.getBoundingClientRect();
-      onTaskDrop(event.clientY < rect.top + rect.height / 2 ? 'above' : 'below');
+      if (collapsed) onTaskDrop('below');
+      else {
+        const rect = event.currentTarget.getBoundingClientRect();
+        onTaskDrop(event.clientY < rect.top + rect.height / 2 ? 'above' : 'below');
+      }
       setDropSide(null);
     }}
     onKeyDown={(event) => {
@@ -1330,6 +1335,13 @@ function pendingDividerIndexAtPointer(container: HTMLElement, clientY: number, t
     return clientY < rect.top + rect.height / 2;
   });
   return nextCardIndex < 0 ? taskCount : Math.min(nextCardIndex, taskCount);
+}
+
+function pointerTargetsCollapsedPendingArea(container: HTMLElement, clientY: number) {
+  const divider = container.querySelector<HTMLElement>('.pending-divider.is-collapsed');
+  if (!divider) return false;
+  const rect = divider.getBoundingClientRect();
+  return clientY >= rect.top - Math.min(16, rect.height / 2);
 }
 
 export default function Home() {
@@ -2355,6 +2367,9 @@ export default function Home() {
       const hasPendingDivider = pendingCustomMode && pendingDividerIndex !== null;
       const dividerIndex = hasPendingDivider ? pendingDividerIndex : null;
       const dividerCollapsed = hasPendingDivider && settings.pendingDividerCollapsed;
+      const draggedTask = draggingId ? tasks.find((task) => task.id === draggingId) : undefined;
+      const canHideDraggedPending = Boolean(hasPendingDivider && dividerCollapsed && draggedTask?.status === 'pending' && !settings.pendingDividerBelowTaskIds?.includes(draggingId));
+      const pendingHideDropActive = canHideDraggedPending && pendingDividerCatch?.taskId === PENDING_HIDE_DROP_TARGET && pendingDividerCatch.side === 'below';
       const visible = hasPendingDivider
         ? dividerCollapsed && !draggingPendingDivider ? boardTasks.slice(0, dividerIndex ?? 0) : boardTasks
         : showAll[board.id] ? boardTasks : boardTasks.slice(0, VISIBLE_LIMIT[boardDensity][board.id]);
@@ -2374,6 +2389,13 @@ export default function Home() {
             setPendingDividerDropIndex(pendingDividerIndexAtPointer(event.currentTarget, event.clientY, boardTasks.length));
             return;
           }
+          if (board.id === 'pending' && canHideDraggedPending && pointerTargetsCollapsedPendingArea(event.currentTarget, event.clientY)) {
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'move';
+            setPendingDividerCatch({ taskId: PENDING_HIDE_DROP_TARGET, side: 'below' });
+            setDropTarget('');
+            return;
+          }
           event.preventDefault();
           setDropTarget(board.id);
         }}
@@ -2390,6 +2412,10 @@ export default function Home() {
             return;
           }
           event.preventDefault();
+          if (board.id === 'pending' && draggingId && canHideDraggedPending && pointerTargetsCollapsedPendingArea(event.currentTarget, event.clientY)) {
+            moveTaskAcrossPendingDivider(draggingId, 'below');
+            return;
+          }
           if (draggingId) moveTask(draggingId, board.id);
         }}>
         <header className="column-header"><span className="column-index">{board.index}</span><div><div className="column-titleline"><h2>{board.title}</h2>{board.id === 'pending' && <div className="pending-sort" ref={pendingSortRef}><button type="button" className="column-sort-trigger" aria-haspopup="menu" aria-expanded={pendingSortOpen} onClick={() => setPendingSortOpen((open) => !open)}><span>SORT</span><strong>{pendingSortLabel(pendingSort)}</strong><i>⌄</i></button>{pendingSortOpen && <div className="pending-sort-menu" role="menu" aria-label="等待行动排序方式">{([['custom', '自定义顺序'], ['priority', '优先级'], ['start', '开始时间'], ['deadline', '截止时间']] as [PendingSort, string][]).map(([value, label], index) => <button key={value} type="button" role="menuitemradio" aria-checked={pendingSort === value} className={pendingSort === value ? 'active' : ''} onClick={() => { setPendingSort(value); setPendingSortOpen(false); }}><span>{String(index + 1).padStart(2, '0')}</span><strong>{label}</strong><i>{pendingSort === value ? '●' : '○'}</i></button>)}</div>}</div>}</div><p>{board.subtitle}</p></div><strong>{String(boardTasks.length).padStart(2, '0')}</strong></header>
@@ -2455,7 +2481,11 @@ export default function Home() {
           {boardTasks.length === 0 && <button className={`empty-state empty-state-${board.id}`} onClick={() => openNewTask(board.id)}><span aria-hidden="true">{board.id === 'pending' ? '?' : board.id === 'inProgress' ? '!' : '★'}</span><strong>{board.id === 'pending' ? 'NEXT QUEST?' : board.id === 'inProgress' ? 'READY TO ENGAGE' : 'CLEAR THE STAGE!'}</strong></button>}
         </div>
         {hasPendingDivider
-          ? hiddenCount > 0 && <button className="reveal-button" onClick={() => setSettings((current) => ({ ...current, pendingDividerCollapsed: !current.pendingDividerCollapsed }))}>{dividerCollapsed ? `显示其余 ${hiddenCount} 个任务 ↓` : '收起任务 ↑'}</button>
+          ? hiddenCount > 0 && <button className={`reveal-button ${canHideDraggedPending ? 'is-hide-drop-ready' : ''} ${pendingHideDropActive ? 'is-hide-drop-target' : ''}`}
+            onDragOver={(event) => { if (!canHideDraggedPending) return; event.preventDefault(); event.stopPropagation(); event.dataTransfer.dropEffect = 'move'; setPendingDividerCatch({ taskId: PENDING_HIDE_DROP_TARGET, side: 'below' }); }}
+            onDragLeave={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setPendingDividerCatch((current) => current?.taskId === PENDING_HIDE_DROP_TARGET ? null : current); }}
+            onDrop={(event) => { if (!canHideDraggedPending || !draggingId) return; event.preventDefault(); event.stopPropagation(); moveTaskAcrossPendingDivider(draggingId, 'below'); }}
+            onClick={() => setSettings((current) => ({ ...current, pendingDividerCollapsed: !current.pendingDividerCollapsed }))}>{dividerCollapsed ? `显示其余 ${hiddenCount} 个任务 ↓` : '收起任务 ↑'}</button>
           : (hiddenCount > 0 || showAll[board.id]) && <button className="reveal-button" onClick={() => setShowAll((current) => ({ ...current, [board.id]: !current[board.id] }))}>{showAll[board.id] ? '收起任务 ↑' : `显示其余 ${hiddenCount} 个任务 ↓`}</button>}
         {board.id === 'completed' && missionTasks.some((task) => task.status === 'completed' && task.completedAt && localDateKey(new Date(task.completedAt)) !== localDateKey(now)) && <button className="history-button" onClick={() => { setShowCompletedHistory((current) => !current); setShowAll((current) => ({ ...current, completed: false })); }}>{showCompletedHistory ? '只看今天完成 ✓' : '查看过去完成记录 ↗'}</button>}
       </section>;

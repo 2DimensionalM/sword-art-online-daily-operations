@@ -112,6 +112,9 @@ button { color:inherit; }
 .pending-divider-insert:hover > span,.pending-divider-insert:focus-visible > span { opacity:1; transform:scaleX(1); }
 .pending-divider { position:relative; z-index:4; height:22px; min-height:22px; display:flex; align-items:center; margin:0; padding:0; color:var(--ink); background:transparent; border:0; cursor:grab; outline:none; }
 .pending-divider::before { content:''; width:100%; height:3px; background:var(--ink); transition:height 100ms ease,background 100ms ease,transform 100ms ease; }
+.pending-divider::after { content:'DROP TO HIDE / 放到分隔符下'; position:absolute; left:50%; top:50%; padding:4px 10px; color:var(--yellow); background:var(--ink); border:2px solid var(--paper); box-shadow:3px 3px 0 var(--yellow); font:italic 1000 8px/1 var(--font-ui); letter-spacing:.08em; opacity:0; pointer-events:none; transform:translate(-50%,-50%) rotate(-1deg); transition:opacity 100ms ease,transform 100ms var(--ease-snap); white-space:nowrap; }
+.pending-divider.is-collapsed.has-task-drag { height:46px; min-height:46px; margin:-6px 0 2px; background:repeating-linear-gradient(-45deg,rgba(247,226,27,.12) 0 6px,transparent 6px 12px); border-block:2px dashed var(--ink); cursor:copy; transition:height 120ms var(--ease-snap),min-height 120ms var(--ease-snap),background 120ms ease; }
+.pending-divider.is-collapsed.has-task-drag::after { opacity:1; }.pending-divider.is-collapsed.has-task-drag.drop-below::after { color:var(--ink); background:var(--yellow); box-shadow:4px 4px 0 var(--ink); transform:translate(-50%,-50%) rotate(1deg) scale(1.04); }
 .pending-divider.drop-above::before,.pending-divider.drop-below::before { height:4px; background:var(--yellow); box-shadow:0 0 0 1px var(--ink); }
 .pending-divider:active { cursor:grabbing; }
 .pending-divider:focus-visible::before { height:4px; background:var(--ink); }
@@ -179,6 +182,7 @@ button { color:inherit; }
 .empty-state:active span,.empty-state:active strong { transform:translate(1px,2px) rotate(-3deg); box-shadow:1px 1px 0 var(--ink); }
 .reveal-button { width:calc(100% - 24px); margin:0 12px 12px; padding:9px; border:2px solid var(--ink); background:transparent; font-size:10px; font-weight:900; cursor:pointer; }
 .reveal-button:hover { color:var(--yellow); background:var(--ink); }
+.reveal-button.is-hide-drop-ready { border-style:dashed; cursor:copy; }.reveal-button.is-hide-drop-ready::after { content:' · DROP TO HIDE'; color:var(--red); font-size:8px; letter-spacing:.06em; }.reveal-button.is-hide-drop-target { color:var(--ink); background:var(--yellow); border-style:solid; box-shadow:4px 4px 0 var(--ink); outline:2px solid var(--yellow); outline-offset:2px; transform:translate(-2px,-2px); }.reveal-button.is-hide-drop-target::after { color:var(--ink); }
 .app-footer { position:relative; z-index:2; display:flex; justify-content:flex-end; align-items:center; gap:10px; margin-top:20px; font-size:9px; font-weight:900; letter-spacing:.1em; }
 .app-footer i { width:5px; height:5px; background:var(--ink); border-radius:50%; }
 
@@ -1069,6 +1073,7 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .board.is-compact .task-stack.has-pending-divider-affordance { gap:0; }
 .board.is-compact .task-stack.has-pending-divider-affordance > .task-card { margin-bottom:9px; }
 .board.is-compact .pending-divider { height:18px; min-height:18px; }
+.board.is-compact .pending-divider.is-collapsed.has-task-drag { height:40px; min-height:40px; }
 .board.is-compact .pending-divider-insert { height:9px; min-height:9px; margin-top:-9px; }
 .board.is-compact .pending-divider-insert:hover,.board.is-compact .pending-divider-insert:focus-visible { height:18px; min-height:18px; }
 .board.is-compact .task-card,.board.is-compact .task-card.has-countdown { height:82px; min-height:82px; padding:8px 43px 7px 14px; }
@@ -1118,6 +1123,7 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .theme-night .pending-divider-insert > span { background:color-mix(in srgb,var(--night-text) 60%,transparent); }
 .theme-night .pending-divider { color:var(--night-text); }
 .theme-night .pending-divider::before { background:color-mix(in srgb,var(--night-text) 86%,transparent); }
+.theme-night .pending-divider.is-collapsed.has-task-drag { background:repeating-linear-gradient(-45deg,rgba(224,202,70,.1) 0 6px,transparent 6px 12px); border-color:var(--night-line); }.theme-night .pending-divider::after { border-color:var(--night-line); }.theme-night .pending-divider.is-collapsed.has-task-drag.drop-below::after { color:#080806; background:var(--night-gold); }
 .theme-night .pending-divider.drop-above::before,.theme-night .pending-divider.drop-below::before { background:var(--night-gold); box-shadow:0 0 0 1px #080806; }
 .theme-night .pending-divider.is-dragging::before { background:var(--night-gold); box-shadow:0 0 0 1px #080806; }
 .theme-night .pending-divider:focus-visible::before { background:var(--night-text); }
