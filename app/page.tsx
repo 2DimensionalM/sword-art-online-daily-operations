@@ -85,7 +85,6 @@ const BASE_TYPES: PlannerSettings['taskTypes'] = [
 ];
 const BASE_LOCATIONS = ['🏠 家', '🏢 公司', '🏫 学校', '💻 线上', '🏃 户外', '✈️ 机场', '🚉 车站', '🛒 超市', '📍 其他'].map((value) => ({ value }));
 const DEFAULT_SETTINGS: PlannerSettings = { username: '2DimensionalM', taskTypes: BASE_TYPES, locations: BASE_LOCATIONS, defaultTaskType: '🧬 个人', defaultLocation: '🏠 家', recurrenceEnabled: true, recurrenceOrder: [], pendingDividerBelowTaskIds: null, pendingDividerCollapsed: false };
-const CANCELLATION_LOG_LIMIT = 6;
 const RETIRED_ROUTINE_TYPE = '⏰ 作息';
 const TASK_KEY = 'sao-planner-tasks-v2';
 const LEGACY_TASK_KEY = 'sao-planner-tasks-v1';
@@ -807,7 +806,14 @@ function WorkshopCombobox({ value, options, onChange, onOptionSelect, placeholde
   </div>;
 }
 
-function ArchiveDateFilter({ value, onChange }: { value: string; onChange: (value: string) => void }) {
+function ArchiveDateFilter({ value, onChange, label = 'DAILY FLOW DATE', allLabel = '全部行动日 / ALL DAYS', dialogLabel = '按 DAILY FLOW 日期筛选', footerLabel = '按 DAILY FLOW 的任务分配筛选' }: {
+  value: string;
+  onChange: (value: string) => void;
+  label?: string;
+  allLabel?: string;
+  dialogLabel?: string;
+  footerLabel?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [month, setMonth] = useState(() => value ? new Date(`${value}T00:00:00`) : new Date());
   const rootRef = useRef<HTMLDivElement>(null);
@@ -832,19 +838,47 @@ function ArchiveDateFilter({ value, onChange }: { value: string; onChange: (valu
     setOpen((current) => !current);
   };
   return <div className={`archive-filter archive-date-filter ${open ? 'is-open' : ''}`} ref={rootRef}>
-    <span>DAILY FLOW DATE</span>
+    <span>{label}</span>
     <button type="button" className="archive-filter-trigger" aria-haspopup="dialog" aria-expanded={open} onClick={openPicker}>
-      <i aria-hidden="true">▣</i><strong>{value ? value.replaceAll('-', ' / ') : '全部行动日 / ALL DAYS'}</strong><em aria-hidden="true">⌄</em>
+      <i aria-hidden="true">▣</i><strong>{value ? value.replaceAll('-', ' / ') : allLabel}</strong><em aria-hidden="true">⌄</em>
     </button>
-    {open && <section className="archive-date-menu" role="dialog" aria-label="按 DAILY FLOW 日期筛选">
+    {open && <section className="archive-date-menu" role="dialog" aria-label={dialogLabel}>
       <header><button type="button" aria-label="上个月" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() - 1, 1))}>‹</button><strong>{month.getFullYear()} / {String(month.getMonth() + 1).padStart(2, '0')}</strong><button type="button" aria-label="下个月" onClick={() => setMonth(new Date(month.getFullYear(), month.getMonth() + 1, 1))}>›</button></header>
       <div className="archive-date-weekdays">{WEEKDAYS.map((day) => <span key={day}>周{day}</span>)}</div>
       <div className="archive-date-days">{days.map((day) => {
         const key = localDateKey(day);
         return <button type="button" key={key} className={`${day.getMonth() !== month.getMonth() ? 'outside' : ''} ${key === value ? 'active' : ''} ${key === localDateKey(new Date()) ? 'today' : ''}`} onClick={() => { onChange(key); setOpen(false); }}>{day.getDate()}</button>;
       })}</div>
-      <footer><span>按 DAILY FLOW 的任务分配筛选</span><button type="button" onClick={() => { onChange(''); setOpen(false); }}>CLEAR / 清除</button></footer>
+      <footer><span>{footerLabel}</span><button type="button" onClick={() => { onChange(''); setOpen(false); }}>CLEAR / 清除</button></footer>
     </section>}
+  </div>;
+}
+
+function CancellationRemovalDialog({ event, busy, onCancel, onConfirm }: {
+  event: TaskDeletionEvent;
+  busy: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const closeOnEscape = (keyboardEvent: KeyboardEvent) => {
+      if (keyboardEvent.key === 'Escape' && !busy) onCancel();
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [busy, onCancel]);
+
+  return <div className="selector-backdrop cancellation-confirm-backdrop" onMouseDown={(mouseEvent) => {
+    if (mouseEvent.currentTarget === mouseEvent.target && !busy) onCancel();
+  }}>
+    <section className="cancellation-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancellation-confirm-title" aria-describedby="cancellation-confirm-description">
+      <header><span>DATABASE WARNING / 04</span><strong id="cancellation-confirm-title">REMOVE CANCELLATION LOG?</strong><button type="button" className="selector-close-button" aria-label="取消删除" disabled={busy} onClick={onCancel}>×</button></header>
+      <div className="cancellation-confirm-body">
+        <div className="cancellation-confirm-signal" aria-hidden="true"><span>!</span><strong>NO<br />UNDO</strong></div>
+        <div className="cancellation-confirm-copy"><span>FINAL CHECK / 最终确认</span><h3>{event.title}</h3><p id="cancellation-confirm-description">这会从本地 SQLite 中永久删除该条取消留痕，并改变首页的取消统计。原任务不会恢复。</p><dl><div><dt>TYPE</dt><dd>{event.taskType}</dd></div><div><dt>STATUS</dt><dd>{statusLabel(event.status)}</dd></div><div><dt>DELETED</dt><dd>{formatTime(event.deletedAt)}</dd></div></dl></div>
+      </div>
+      <footer><button type="button" className="cancellation-confirm-cancel" disabled={busy} onClick={onCancel}>KEEP LOG / 保留留痕</button><button type="button" className="cancellation-confirm-remove" disabled={busy} onClick={onConfirm} autoFocus>{busy ? 'REMOVING…' : 'REMOVE FOREVER / 永久删除'}</button></footer>
+    </section>
   </div>;
 }
 
@@ -1383,8 +1417,12 @@ export default function Home() {
   const [sleepDisplayMode, setSleepDisplayMode] = useState<SleepDisplayMode>('standard');
   const [sleepStandardExpanded, setSleepStandardExpanded] = useState(false);
   const [repeatersExpanded, setRepeatersExpanded] = useState(true);
-  const [cancellationLogExpanded, setCancellationLogExpanded] = useState(false);
+  const [cancellationLogQuery, setCancellationLogQuery] = useState('');
+  const [cancellationLogStatus, setCancellationLogStatus] = useState<Status | 'all'>('all');
+  const [cancellationLogType, setCancellationLogType] = useState('all');
   const [cancellationLogDay, setCancellationLogDay] = useState('');
+  const [cancellationRemovalTarget, setCancellationRemovalTarget] = useState<TaskDeletionEvent | null>(null);
+  const [cancellationRemovalBusy, setCancellationRemovalBusy] = useState(false);
   const [repeaterDraggingId, setRepeaterDraggingId] = useState('');
   const missionTasks = useMemo(() => tasks.filter((task) => !task.isRecurrenceTemplate), [tasks]);
 
@@ -1673,8 +1711,20 @@ export default function Home() {
       return hasManualOrder ? (a.manualOrder ?? Number.MAX_SAFE_INTEGER) - (b.manualOrder ?? Number.MAX_SAFE_INTEGER) : a.index - b.index;
     });
   }, [settings.recurrenceOrder, tasks]);
-  const matchingCancellationEvents = cancellationLogDay ? taskDeletionEvents.filter((event) => localDateKey(new Date(event.deletedAt)) === cancellationLogDay) : taskDeletionEvents;
-  const visibleCancellationEvents = cancellationLogExpanded || cancellationLogDay ? matchingCancellationEvents : matchingCancellationEvents.slice(0, CANCELLATION_LOG_LIMIT);
+  const cancellationTypeOptions = useMemo(() => [...new Set(taskDeletionEvents.map((event) => event.taskType))]
+    .sort((a, b) => a.localeCompare(b, 'zh-CN'))
+    .map((taskType) => ({ value: taskType, label: taskType, tone: typeColor(taskType, settings) })), [settings, taskDeletionEvents]);
+  const matchingCancellationEvents = useMemo(() => {
+    const query = cancellationLogQuery.trim().toLocaleLowerCase('zh-CN');
+    return taskDeletionEvents.filter((event) => {
+      const searchable = `${event.title} ${event.taskType} ${statusLabel(event.status)} ${priorityLabel(event.priority)} ${formatTime(event.deletedAt)}`.toLocaleLowerCase('zh-CN');
+      return (!query || searchable.includes(query))
+        && (cancellationLogStatus === 'all' || event.status === cancellationLogStatus)
+        && (cancellationLogType === 'all' || event.taskType === cancellationLogType)
+        && (!cancellationLogDay || localDateKey(new Date(event.deletedAt)) === cancellationLogDay);
+    });
+  }, [cancellationLogDay, cancellationLogQuery, cancellationLogStatus, cancellationLogType, taskDeletionEvents]);
+  const cancellationFiltersActive = Boolean(cancellationLogQuery.trim() || cancellationLogDay || cancellationLogStatus !== 'all' || cancellationLogType !== 'all');
 
   const filteredTable = useMemo(() => {
     const query = tableQuery.trim().toLowerCase();
@@ -1929,12 +1979,19 @@ export default function Home() {
     setDraft(null);
     setToast(draft.isRecurrenceTemplate ? '循环模板已删除' : '任务已删除');
   };
-  const removeCancellationEvent = async (id: number) => {
+  const removeCancellationEvent = async () => {
+    if (!cancellationRemovalTarget || cancellationRemovalBusy) return;
+    setCancellationRemovalBusy(true);
     try {
-      setTaskDeletionEvents(await removeTaskDeletionEvent(id));
+      const remainingEvents = await removeTaskDeletionEvent(cancellationRemovalTarget.id);
+      setTaskDeletionEvents(remainingEvents);
+      if (cancellationLogType !== 'all' && !remainingEvents.some((event) => event.taskType === cancellationLogType)) setCancellationLogType('all');
+      setCancellationRemovalTarget(null);
       setToast('取消留痕已移除');
     } catch (error) {
       setToast(error instanceof Error ? error.message : '取消留痕移除失败');
+    } finally {
+      setCancellationRemovalBusy(false);
     }
   };
 
@@ -2502,20 +2559,27 @@ export default function Home() {
           </div>
         </section>
         <section className="settings-panel cancellation-log-panel">
-          <header><span>04</span><div><h3>CANCELLATION LOG</h3><p>首页取消统计的数据来源与手动清理入口</p></div><strong>{taskDeletionEvents.length} EVENTS</strong></header>
+          <header><span>04</span><div><h3>CANCELLATION LOG</h3><p>首页取消统计的数据来源与手动清理入口</p></div><strong>{matchingCancellationEvents.length} / {taskDeletionEvents.length} EVENTS</strong></header>
           <div className="cancellation-log-body">
             <div className="cancellation-log-rule"><span>AUDIT RULE</span><strong>删除普通任务或循环实例时记录；删除循环模板不计入取消。</strong><small>移除留痕只影响统计，不会恢复原任务。</small></div>
-            {cancellationLogDay && <div className="cancellation-log-date-filter"><strong>{cancellationLogDay.replaceAll('-', ' / ')} · {matchingCancellationEvents.length} EVENTS</strong><button type="button" onClick={() => setCancellationLogDay('')}>SHOW ALL / 查看全部 ×</button></div>}
-            {visibleCancellationEvents.length ? <div className="cancellation-event-list">{visibleCancellationEvents.map((event, index) => {
-              const missionMoment = event.dueAt || event.startedAt || event.completedAt;
-              return <article key={event.id}>
-                <span>{String(index + 1).padStart(2, '0')}</span>
-                <div><strong>{event.title}</strong><small>{event.taskType} · {statusLabel(event.status)} · 原任务 {missionMoment ? formatTime(missionMoment) : '无日期'}</small></div>
-                <time>{formatTime(event.deletedAt)}<small>DELETED</small></time>
-                <button type="button" onClick={() => void removeCancellationEvent(event.id)} aria-label={`移除 ${event.title} 的取消留痕`}>×<span>REMOVE</span></button>
-              </article>;
-            })}</div> : <div className="cancellation-log-empty"><strong>NO CANCELLATION EVENTS</strong><span>{cancellationLogDay ? '当天没有取消留痕，可查看全部记录。' : '删除任务后，取消留痕会出现在这里。'}</span></div>}
-            {!cancellationLogDay && taskDeletionEvents.length > CANCELLATION_LOG_LIMIT && <button type="button" className="cancellation-log-toggle" aria-expanded={cancellationLogExpanded} onClick={() => setCancellationLogExpanded((current) => !current)}>{cancellationLogExpanded ? '收起记录 ↑' : `显示其余 ${taskDeletionEvents.length - CANCELLATION_LOG_LIMIT} 条 ↓`}</button>}
+            <div className="cancellation-filter-deck">
+              <label className="cancellation-search-filter"><span>SEARCH LOG / 搜索留痕</span><div className="cancellation-search-control"><i aria-hidden="true">⌕</i><input value={cancellationLogQuery} onChange={(event) => setCancellationLogQuery(event.target.value)} placeholder="任务名、类型、状态或日期…" /><em aria-hidden="true">TYPE</em></div></label>
+              <ArchiveFilterMenu label="STATUS" mark="◈" value={cancellationLogStatus} onChange={(value) => setCancellationLogStatus(value as Status | 'all')} options={[{ value: 'all', label: '全部状态 / ALL' }, { value: 'inProgress', label: 'IN PROGRESS / 进行中', tone: 'inProgress' }, { value: 'pending', label: 'PENDING / 待处理', tone: 'pending' }, { value: 'completed', label: 'COMPLETED / 已完成', tone: 'completed' }]} />
+              <ArchiveFilterMenu label="TYPE" mark="▦" value={cancellationLogType} onChange={setCancellationLogType} options={[{ value: 'all', label: '全部类型 / ALL' }, ...cancellationTypeOptions]} />
+              <ArchiveDateFilter value={cancellationLogDay} onChange={setCancellationLogDay} label="DELETION DATE" allLabel="全部删除日 / ALL DAYS" dialogLabel="按删除日期筛选取消留痕" footerLabel="按留痕的实际删除日期筛选" />
+            </div>
+            <div className="cancellation-result-strip" aria-live="polite"><span>FILTERED SIGNAL</span><strong>{matchingCancellationEvents.length} 条匹配留痕</strong><small>{cancellationFiltersActive ? '已启用筛选' : '显示全部数据'}</small></div>
+            <div className="cancellation-log-results" tabIndex={0} aria-label="取消留痕列表，可滚动">
+              {matchingCancellationEvents.length ? <div className="cancellation-event-list">{matchingCancellationEvents.map((event, index) => {
+                const missionMoment = event.dueAt || event.startedAt || event.completedAt;
+                return <article key={event.id}>
+                  <span>{String(index + 1).padStart(2, '0')}</span>
+                  <div><strong>{event.title}</strong><small>{event.taskType} · {statusLabel(event.status)} · 原任务 {missionMoment ? formatTime(missionMoment) : '无日期'}</small></div>
+                  <time>{formatTime(event.deletedAt)}<small>DELETED</small></time>
+                  <button type="button" onClick={() => setCancellationRemovalTarget(event)} aria-label={`移除 ${event.title} 的取消留痕`}>×<span>REMOVE</span></button>
+                </article>;
+              })}</div> : <div className="cancellation-log-empty"><strong>{taskDeletionEvents.length ? 'NO MATCHING SIGNALS' : 'NO CANCELLATION EVENTS'}</strong><span>{taskDeletionEvents.length ? '当前筛选条件下没有取消留痕，请调整搜索或筛选。' : '删除任务后，取消留痕会出现在这里。'}</span></div>}
+            </div>
           </div>
         </section>
       </div>
@@ -2526,6 +2590,7 @@ export default function Home() {
 
     {view !== 'focus' && <SignalTicker signals={signals} />}
     {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
+    {cancellationRemovalTarget && <CancellationRemovalDialog event={cancellationRemovalTarget} busy={cancellationRemovalBusy} onCancel={() => setCancellationRemovalTarget(null)} onConfirm={() => void removeCancellationEvent()} />}
 
     {impact && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
 
