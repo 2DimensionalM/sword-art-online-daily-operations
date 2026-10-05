@@ -170,6 +170,7 @@ const writeBackup = db.prepare(`
   INSERT INTO migration_backups (source, payload_json, imported_at) VALUES (?, ?, ?)
 `);
 const readSleepRecords = db.prepare('SELECT id, sleep_started_at, wake_at, created_at, updated_at FROM sleep_records ORDER BY wake_at DESC');
+const readSleepWakeTimes = db.prepare('SELECT wake_at FROM sleep_records');
 const insertSleepRecord = db.prepare(`
   INSERT INTO sleep_records (id, sleep_started_at, wake_at, created_at, updated_at)
   VALUES (?, ?, ?, ?, ?)
@@ -433,6 +434,14 @@ function createSleepRecord(payload) {
   if (Number.isNaN(start.getTime()) || Number.isNaN(wake.getTime()) || wake <= start) {
     throw new Error('Wake time must be later than sleep time');
   }
+  const wakeDay = `${wake.getFullYear()}-${String(wake.getMonth() + 1).padStart(2, '0')}-${String(wake.getDate()).padStart(2, '0')}`;
+  const alreadyLogged = readSleepWakeTimes.all().some((record) => {
+    const existing = new Date(record.wake_at);
+    return existing.getFullYear() === wake.getFullYear()
+      && existing.getMonth() === wake.getMonth()
+      && existing.getDate() === wake.getDate();
+  });
+  if (alreadyLogged) throw new Error(`${wakeDay} 已有睡眠记录；每个醒来日期只能保存一条`);
   const now = new Date().toISOString();
   insertSleepRecord.run(id, start.toISOString(), wake.toISOString(), now, now);
   return getSleepRecords();

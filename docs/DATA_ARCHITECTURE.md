@@ -20,6 +20,7 @@ The API accepts requests only from HTTP origins on `localhost` or `127.0.0.1`. I
 - `deadline_events`: immutable audit events captured when an existing deadline on a Must task is changed or cleared. Initial deadline assignment is not a change.
 - `task_deletion_events`: immutable task snapshots captured when a persisted non-template task disappears from a successful state write. These records power cancellation statistics; deletion history from before this table existed cannot be reconstructed.
 - `task_time_events`: immutable task-time audit events for `started_at`, `due_at`, and `completed_at`. New non-template tasks record non-empty initial values; subsequent assignments, edits, and clears record both the old and new value.
+- `sleep_records`: one sleep window per local calendar date of its wake time. The browser checks before submission, and the loopback API checks again before inserting; a duplicate date returns an error without changing existing records. The NIGHT LOG asks for confirmation before deletion.
 
 Writes replace the complete planner state inside one `BEGIN IMMEDIATE` transaction. A monotonically increasing revision rejects stale writes from another tab. WAL mode and `synchronous = FULL` are enabled for local durability.
 

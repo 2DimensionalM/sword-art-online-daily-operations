@@ -883,6 +883,51 @@ function CancellationRemovalDialog({ event, busy, onCancel, onConfirm }: {
   </div>;
 }
 
+function SleepRemovalDialog({ record, busy, error, returnFocus, onCancel, onConfirm }: {
+  record: SleepRecord;
+  busy: boolean;
+  error: string;
+  returnFocus: HTMLButtonElement | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const dialogRef = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onCancel();
+      if (event.key !== 'Tab') return;
+      const buttons = [...(dialogRef.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])];
+      if (!buttons.length) return;
+      const first = buttons[0];
+      const last = buttons[buttons.length - 1];
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [busy, onCancel]);
+  useEffect(() => () => {
+    if (returnFocus?.isConnected) returnFocus.focus();
+    else document.querySelector<HTMLButtonElement>('.sleep-rhythm-submit')?.focus();
+  }, [record.id, returnFocus]);
+
+  const wakeDay = localDateKey(new Date(record.wakeAt));
+  return <div className="selector-backdrop sleep-remove-backdrop" onMouseDown={(event) => {
+    if (event.currentTarget === event.target && !busy) onCancel();
+  }}>
+    <section ref={dialogRef} className="sleep-remove-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sleep-remove-title" aria-describedby="sleep-remove-description">
+      <header><span>03 / NIGHT LOG</span><button type="button" aria-label="取消删除" disabled={busy} onClick={onCancel}>×</button></header>
+      <div className="sleep-remove-body">
+        <h3 id="sleep-remove-title">删除这条睡眠记录？</h3>
+        <div className="sleep-remove-summary"><strong>{wakeDay.replaceAll('-', ' / ')}</strong><span>{formatSleepDateTime(record.sleepStartedAt)} → {formatSleepDateTime(record.wakeAt)}</span></div>
+        <p id="sleep-remove-description">删除后无法在应用中撤销。</p>
+        {error && <p className="sleep-remove-error" role="alert">{error}</p>}
+      </div>
+      <footer><button type="button" className="sleep-remove-keep" disabled={busy} onClick={onCancel} autoFocus>保留记录</button><button type="button" className="sleep-remove-confirm" disabled={busy} onClick={onConfirm}>{busy ? '删除中…' : '确认删除'}</button></footer>
+    </section>
+  </div>;
+}
+
 function RichTextDescription({ value, onChange }: { value: string; onChange: (value: string) => void }) {
   const editorRef = useRef<HTMLDivElement>(null);
   const selectionRef = useRef<Range | null>(null);
@@ -1420,6 +1465,11 @@ export default function Home() {
   const [taskDeletionEvents, setTaskDeletionEvents] = useState<TaskDeletionEvent[]>([]);
   const [sleepLoading, setSleepLoading] = useState(true);
   const [sleepSubmitting, setSleepSubmitting] = useState(false);
+  const [sleepError, setSleepError] = useState<{ message: string; sequence: number } | null>(null);
+  const [sleepRemovalTarget, setSleepRemovalTarget] = useState<SleepRecord | null>(null);
+  const [sleepRemovalBusy, setSleepRemovalBusy] = useState(false);
+  const [sleepRemovalError, setSleepRemovalError] = useState('');
+  const [sleepRemovalTrigger, setSleepRemovalTrigger] = useState<HTMLButtonElement | null>(null);
   const [sleepStartedAt, setSleepStartedAt] = useState(() => localDateTimeInputValue(new Date(Date.now() - 8 * 60 * 60_000).toISOString()));
   const [wakeAt, setWakeAt] = useState(() => localDateTimeInputValue(new Date().toISOString()));
   const [sleepPickerField, setSleepPickerField] = useState<'sleepStartedAt' | 'wakeAt' | null>(null);
@@ -1679,6 +1729,11 @@ export default function Home() {
     };
   }, [pendingSortOpen]);
   useEffect(() => { if (!toast) return; const timer = window.setTimeout(() => setToast(''), 2200); return () => window.clearTimeout(timer); }, [toast]);
+  useEffect(() => {
+    if (!sleepError) return;
+    const timer = window.setTimeout(() => setSleepError(null), 4000);
+    return () => window.clearTimeout(timer);
+  }, [sleepError]);
   useEffect(() => {
     if (!impact) return;
     const duration = impact.tier === 'finalTen' ? 1_600 : impact.tier === 'finalMinute' ? 1_300 : impact.tier === 'five' ? 1_100 : 900;
@@ -2051,31 +2106,44 @@ export default function Home() {
     setMenuClosing(true);
     window.setTimeout(() => setMenuClosing(false), 800);
   };
+  const showSleepError = (message: string) => setSleepError((current) => ({ message, sequence: (current?.sequence ?? 0) + 1 }));
   const submitSleepRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const startedAt = new Date(sleepStartedAt);
     const awakenedAt = new Date(wakeAt);
     if (Number.isNaN(startedAt.getTime()) || Number.isNaN(awakenedAt.getTime()) || awakenedAt <= startedAt) {
-      setToast('WAKE TIME REQUIRED · 醒来时间必须晚于入睡时间');
+      showSleepError('醒来时间必须晚于入睡时间。请重新确认时间。');
       return;
     }
+    const wakeDay = localDateKey(awakenedAt);
+    if (sleepRecords.some((record) => localDateKey(new Date(record.wakeAt)) === wakeDay)) {
+      showSleepError(`${wakeDay.replaceAll('-', ' / ')} 已有睡眠记录；每个醒来日期只能保存一条。`);
+      return;
+    }
+    setSleepError(null);
     setSleepSubmitting(true);
     try {
       const records = await createSleepRecord({ id: crypto.randomUUID(), sleepStartedAt: startedAt.toISOString(), wakeAt: awakenedAt.toISOString() });
       setSleepRecords(records);
       setToast('NIGHT LOG SAVED · 夜间状态已归档');
     } catch (error) {
-      setToast(error instanceof Error ? error.message : '睡眠档案保存失败');
+      showSleepError(error instanceof Error ? error.message : '睡眠档案保存失败');
     } finally {
       setSleepSubmitting(false);
     }
   };
-  const deleteSleepRecord = async (id: string) => {
+  const deleteSleepRecord = async () => {
+    if (!sleepRemovalTarget || sleepRemovalBusy) return;
+    setSleepRemovalBusy(true);
+    setSleepRemovalError('');
     try {
-      setSleepRecords(await removeSleepRecord(id));
+      setSleepRecords(await removeSleepRecord(sleepRemovalTarget.id));
+      setSleepRemovalTarget(null);
       setToast('RECORD REMOVED · 睡眠记录已移除');
     } catch (error) {
-      setToast(error instanceof Error ? error.message : '睡眠档案删除失败');
+      setSleepRemovalError(error instanceof Error ? error.message : '睡眠档案删除失败');
+    } finally {
+      setSleepRemovalBusy(false);
     }
   };
   const openSleepPicker = (field: 'sleepStartedAt' | 'wakeAt') => {
@@ -2092,6 +2160,7 @@ export default function Home() {
     const value = `${sleepPickerDate}T${sleepPickerTime}`;
     if (sleepPickerField === 'sleepStartedAt') setSleepStartedAt(value);
     else setWakeAt(value);
+    setSleepError(null);
     setSleepPickerField(null);
   };
   const saveWorkshopType = (event: FormEvent) => {
@@ -2542,16 +2611,17 @@ export default function Home() {
               <time className="sleep-rhythm-date" dateTime={record.wakeAt}><span>{archiveDate.month}</span><strong>{archiveDate.day}</strong><em>{archiveDate.weekday}</em></time>
               <div className="sleep-rhythm-window"><span><i>↓</i> {formatTime(record.sleepStartedAt, false)}</span><strong>{duration}</strong><span><i>↑</i> {formatTime(record.wakeAt, false)}</span></div>
               <div className="sleep-rhythm-track" aria-hidden="true">{crossesMidnight ? <><i className="sleep-rhythm-block" style={{ left: `${startedAt}%`, width: `${100 - startedAt}%` }} /><i className="sleep-rhythm-block is-continuation" style={{ left: 0, width: `${awakenedAt}%` }} /></> : <i className="sleep-rhythm-block" style={{ left: `${startedAt}%`, width: `${Math.max(0, awakenedAt - startedAt)}%` }} />}</div>
-              <button type="button" className="sleep-rhythm-remove" onClick={() => void deleteSleepRecord(record.id)} aria-label={`删除 ${formatSleepDateTime(record.wakeAt)} 的睡眠记录`}>×<span>REMOVE</span></button>
+              <button type="button" className="sleep-rhythm-remove" onClick={(event) => { setSleepRemovalTrigger(event.currentTarget); setSleepRemovalError(''); setSleepRemovalTarget(record); }} aria-label={`删除 ${formatSleepDateTime(record.wakeAt)} 的睡眠记录`}>×<span>REMOVE</span></button>
             </article>;
           })}</div>{sleepDisplayMode === 'standard' && sleepTimelineRecords.length > SLEEP_STANDARD_LIMIT && <button type="button" className="sleep-rhythm-expand" aria-expanded={sleepStandardExpanded} onClick={() => setSleepStandardExpanded((expanded) => !expanded)}><span>{sleepStandardExpanded ? '收起较早记录' : `展开其余 ${sleepTimelineRecords.length - SLEEP_STANDARD_LIMIT} 晚`}</span><strong>{sleepStandardExpanded ? 'COLLAPSE ↑' : 'REVEAL ARCHIVE ↓'}</strong></button>}</> : <div className="sleep-rhythm-empty"><i>☾</i><strong>NO REST SIGNALS YET</strong><span>记录第一晚睡眠后，完整节律会显示在这里。</span></div>}
         </section>
         <aside className="sleep-rhythm-log">
-          <header><span>LOG ENTRY</span><h3>LOG<br />REST</h3><p>记录入睡与醒来时间。</p></header>
+          <header><span>LOG ENTRY</span><h3>LOG<br />REST</h3><p>记录入睡与醒来时间。按醒来日期每天一条。</p></header>
           <form onSubmit={submitSleepRecord}>
             <button type="button" className="sleep-rhythm-picker sleep-start-trigger" onClick={() => openSleepPicker('sleepStartedAt')}><span>01 · SLEEP START</span><strong>{sleepStartedAt.slice(11)}</strong><small>{sleepStartedAt.slice(0, 10).replaceAll('-', ' / ')} · SET TIME</small></button>
             <button type="button" className="sleep-rhythm-picker wake-trigger" onClick={() => openSleepPicker('wakeAt')}><span>02 · WAKE SIGNAL</span><strong>{wakeAt.slice(11)}</strong><small>{wakeAt.slice(0, 10).replaceAll('-', ' / ')} · SET TIME</small></button>
             <div className="sleep-rhythm-draft"><span>CURRENT WINDOW</span><strong>{formatSleepDuration(sleepStartedAt, wakeAt)}</strong></div>
+            {sleepError && <div className="sleep-rhythm-error" role="alert"><span>SIGNAL CHECK / 请核对</span><p>{sleepError.message}</p></div>}
             <button className="sleep-rhythm-submit" type="submit" disabled={sleepSubmitting}>{sleepSubmitting ? 'SAVING SIGNAL…' : 'ARCHIVE REST SIGNAL →'}</button>
           </form>
         </aside>
@@ -2623,6 +2693,7 @@ export default function Home() {
     {view !== 'focus' && <SignalTicker signals={signals} />}
     {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
     {cancellationRemovalTarget && <CancellationRemovalDialog event={cancellationRemovalTarget} busy={cancellationRemovalBusy} onCancel={() => setCancellationRemovalTarget(null)} onConfirm={() => void removeCancellationEvent()} />}
+    {sleepRemovalTarget && <SleepRemovalDialog record={sleepRemovalTarget} busy={sleepRemovalBusy} error={sleepRemovalError} returnFocus={sleepRemovalTrigger} onCancel={() => setSleepRemovalTarget(null)} onConfirm={() => void deleteSleepRecord()} />}
 
     {impact && !(view === 'focus' && impact.origin === 'countdown') && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
 
