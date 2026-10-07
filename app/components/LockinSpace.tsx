@@ -70,20 +70,35 @@ export function LockinSpace({ taskId, beforeEnter, onExit }: { taskId: string; b
     const initial = window.setTimeout(() => void start(), 0);
     const pagehide = () => leaveFocusOnPageHide(spaceId);
     window.addEventListener('pagehide', pagehide);
-    const sync = window.setInterval(async () => {
-      if (locked.current || leavingRef.current) return;
+    let syncing = false;
+    const syncPresence = async () => {
+      if (syncing || locked.current || leavingRef.current || !alive.current) return;
+      syncing = true;
       try {
         const next = await updateFocusPresence(spaceId);
         if (owner.current !== spaceId) return;
         accept(next);
         if (!pending.current && next.sessions.some((item) => item.spaceId === spaceId)) setError('');
-      } catch { if (alive.current) setError('空间连接中断 · 计时等待确认，请重新连接或退出。'); }
-    }, 5000);
+      } catch { if (alive.current) setError('连接暂时中断 · 本轮仍在计时，正在自动重连。'); }
+      finally { syncing = false; }
+    };
+    const reconnect = () => {
+      setNow(Date.now() + offset.current);
+      void syncPresence();
+    };
+    const visible = () => { if (!document.hidden) reconnect(); };
+    const sync = window.setInterval(() => void syncPresence(), 5000);
+    document.addEventListener('visibilitychange', visible);
+    window.addEventListener('focus', reconnect);
+    window.addEventListener('online', reconnect);
     return () => {
       alive.current = false;
       clearTimeout(initial);
       clearInterval(sync);
       window.removeEventListener('pagehide', pagehide);
+      document.removeEventListener('visibilitychange', visible);
+      window.removeEventListener('focus', reconnect);
+      window.removeEventListener('online', reconnect);
       leaveFocusOnPageHide(spaceId);
       surface?.close();
       document.body.style.overflow = overflow;
@@ -92,10 +107,10 @@ export function LockinSpace({ taskId, beforeEnter, onExit }: { taskId: string; b
   }, [accept, start]);
 
   useEffect(() => {
-    if (error || leaving) return;
+    if (leaving) return;
     const timer = window.setInterval(() => setNow(Date.now() + offset.current), 250);
     return () => clearInterval(timer);
-  }, [error, leaving]);
+  }, [leaving]);
   useEffect(() => {
     if (!feedback) return;
     const timer = window.setTimeout(() => setFeedback(false), 1400);

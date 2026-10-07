@@ -555,26 +555,12 @@ function isFocusType(value) {
   return ['学业', '学习', '复习', '证书'].includes(value.replace(/[^\p{L}\p{N}]/gu, ''));
 }
 
-function expireFocusSpace() {
-  const row = db.prepare('SELECT payload_json FROM focus_sessions WHERE ended_at IS NULL').get();
-  if (!row) return;
-  const session = JSON.parse(row.payload_json);
-  if (!session.spaceId || Date.parse(session.leaseUntil) > Date.now()) return;
-  db.exec('BEGIN IMMEDIATE');
-  try {
-    session.focusEndedAt ??= session.lastSeenAt ?? session.startedAt;
-    session.endedAt = session.focusEndedAt;
-    session.phase = 'ended';
-    session.endReason = 'space-disconnected';
-    saveFocusSession(session);
-    db.prepare('UPDATE focus_control SET revision = revision + 1 WHERE id = 1').run();
-    db.exec('COMMIT');
-  } catch (error) { db.exec('ROLLBACK'); throw error; }
-}
+// Presence only arbitrates a new entry after an abandoned browser. A missing ping
+// is not an exit: background tabs can suspend timers for arbitrarily long periods.
+const focusOwnershipGrace = 120_000;
 
 function focusPresence(body) {
   if (!body || typeof body.spaceId !== 'string' || !/^[\w-]{1,80}$/.test(body.spaceId) || typeof body.leave !== 'boolean') throw new Error('Invalid space presence');
-  expireFocusSpace();
   db.exec('BEGIN IMMEDIATE');
   try {
     const at = new Date().toISOString();
@@ -590,7 +576,7 @@ function focusPresence(body) {
         db.prepare('UPDATE focus_control SET revision = revision + 1 WHERE id = 1').run();
       } else {
         active.lastSeenAt = at;
-        active.leaseUntil = new Date(Date.now() + 20_000).toISOString();
+        active.leaseUntil = new Date(Date.now() + focusOwnershipGrace).toISOString();
       }
       saveFocusSession(active);
     }
@@ -604,15 +590,6 @@ function reconcileFocusTasks(at) {
   const row = db.prepare('SELECT payload_json FROM focus_sessions WHERE ended_at IS NULL').get();
   if (!row) return;
   const session = JSON.parse(row.payload_json);
-  if (session.spaceId && Date.parse(session.leaseUntil) <= Date.now()) {
-    session.focusEndedAt ??= session.lastSeenAt ?? session.startedAt;
-    session.endedAt = session.focusEndedAt;
-    session.phase = 'ended';
-    session.endReason = 'space-disconnected';
-    saveFocusSession(session);
-    db.prepare('UPDATE focus_control SET revision = revision + 1 WHERE id = 1').run();
-    return;
-  }
   let changed = false;
   for (const link of session.tasks) {
     if (link.unlinkedAt) continue;
@@ -655,7 +632,6 @@ function getFocusState() {
 
 function focusCommand(body) {
   if (!body || typeof body.requestId !== 'string' || !/^[\w-]{1,80}$/.test(body.requestId)) throw new Error('Invalid focus request id');
-  expireFocusSpace();
   db.exec('BEGIN IMMEDIATE');
   try {
     const state = getFocusState();
@@ -682,7 +658,8 @@ function focusCommand(body) {
     } else if (body.action === 'start' || body.action === 'resume') {
       if (body.spaceId !== undefined && (typeof body.spaceId !== 'string' || !/^[\w-]{1,80}$/.test(body.spaceId) || body.taskIds?.length !== 1)) throw new Error('请选择一个任务进入空间');
       if (body.spaceId && db.prepare('SELECT id FROM focus_commands WHERE id = ?').get(`space-${body.spaceId}`)) throw new Error('空间已退出，请重新进入');
-      if (body.action === 'start' && active && (!body.spaceId || active.spaceId)) throw new Error('已有计时正在进行，请先退出另一空间');
+      const replacingAbandonedSpace = body.action === 'start' && body.spaceId && active?.spaceId && active.spaceId !== body.spaceId && !(Date.parse(active.leaseUntil) > Date.now());
+      if (body.action === 'start' && active && (!body.spaceId || active.spaceId) && !replacingAbandonedSpace) throw new Error('已有计时正在进行，请先退出另一空间');
       if (body.action === 'resume' && active?.phase !== 'break') throw new Error('当前不在休息中，请刷新');
       if (body.action === 'resume' && active?.spaceId && (active.spaceId !== body.spaceId || body.taskIds?.[0] !== active.tasks[0]?.id)) throw new Error('请在原专注空间继续当前任务');
       if (!Array.isArray(body.taskIds) || !body.taskIds.length || body.taskIds.length > 100 || new Set(body.taskIds).size !== body.taskIds.length || body.taskIds.some((id) => typeof id !== 'string')) throw new Error('请至少关联一个正在进行的学习或证书任务');
@@ -691,8 +668,18 @@ function focusCommand(body) {
         if (!task || task.status !== 'inProgress' || !isFocusType(task.task_type) || JSON.parse(task.payload_json).isRecurrenceTemplate) throw new Error('关联任务已变化，请刷新后重新选择');
         return { id: task.id, title: task.title, taskType: task.task_type };
       });
-      if (active) { active.focusEndedAt ??= at; active.endedAt = at; active.phase = 'ended'; saveSession(active); }
-      saveSession({ id: body.requestId, startedAt: at, focusEndedAt: null, endedAt: null, phase: 'focus', ...state.settings, tasks, drifts: [], ...(body.spaceId ? { spaceId: body.spaceId, lastSeenAt: at, leaseUntil: new Date(Date.now() + 20_000).toISOString() } : {}) });
+      if (active) {
+        const stoppedAt = replacingAbandonedSpace ? new Date(Math.max(Date.parse(active.lastSeenAt ?? active.startedAt), Date.parse(active.focusEndedAt ?? active.startedAt))).toISOString() : at;
+        active.focusEndedAt ??= stoppedAt;
+        active.endedAt = stoppedAt;
+        active.phase = 'ended';
+        if (replacingAbandonedSpace) {
+          active.endReason = 'space-replaced';
+          db.prepare('INSERT OR IGNORE INTO focus_commands VALUES (?, ?)').run(`space-${active.spaceId}`, at);
+        }
+        saveSession(active);
+      }
+      saveSession({ id: body.requestId, startedAt: at, focusEndedAt: null, endedAt: null, phase: 'focus', ...state.settings, tasks, drifts: [], ...(body.spaceId ? { spaceId: body.spaceId, lastSeenAt: at, leaseUntil: new Date(Date.now() + focusOwnershipGrace).toISOString() } : {}) });
     } else {
       if (!active || active.id !== body.sessionId) throw new Error('计时已变化，请刷新');
       if (active.spaceId && active.spaceId !== body.spaceId) throw new Error('请在当前专注空间操作');
@@ -751,7 +738,7 @@ const server = createServer(async (request, response) => {
   if (request.method === 'OPTIONS') return sendJson(response, 204, {}, origin);
 
   try {
-    if (request.method === 'GET' && request.url === '/v1/focus') { expireFocusSpace(); return sendJson(response, 200, getFocusState(), origin); }
+    if (request.method === 'GET' && request.url === '/v1/focus') return sendJson(response, 200, getFocusState(), origin);
     if (request.method === 'POST' && request.url === '/v1/focus/presence') return sendJson(response, 200, focusPresence(await readJson(request)), origin);
     if (request.method === 'POST' && request.url === '/v1/focus') {
       const result = focusCommand(await readJson(request));
@@ -820,11 +807,7 @@ server.listen(port, host, () => {
   console.log(`SQLite file: ${databasePath}`);
 });
 
-const focusPresenceSweep = setInterval(expireFocusSpace, 5000);
-focusPresenceSweep.unref();
-
 function shutdown() {
-  clearInterval(focusPresenceSweep);
   server.close(() => {
     db.close();
     process.exit(0);

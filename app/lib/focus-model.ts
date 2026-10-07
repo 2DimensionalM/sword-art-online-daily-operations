@@ -11,7 +11,7 @@ export type FocusSession = {
   minimumMinutes: number;
   breakMinutes: number;
   tasks: (Pick<FocusTask, 'id' | 'title' | 'taskType'> & { unlinkedAt?: string; finalStatus?: string })[];
-  endReason?: 'tasks-inactive';
+  endReason?: 'tasks-inactive' | 'space-exit' | 'space-disconnected' | 'space-replaced';
   drifts: { at: string }[];
 };
 export type FocusState = { eligibleTasks: FocusTask[]; revision: number; settings: { minimumMinutes: number; breakMinutes: number }; sessions: FocusSession[]; serverNow: string };

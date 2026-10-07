@@ -174,20 +174,64 @@ test('focus API preserves planner data, validates transitions, deduplicates retr
     assert.equal((await command('start', { taskIds: ['a'], spaceId: 'room-a' })).status, 400);
     await presence('cancel-before-start', true);
     assert.equal((await command('start', { taskIds: ['a'], spaceId: 'cancel-before-start' })).status, 400);
-    await command('start', { taskIds: ['a'], spaceId: 'expired-room' });
-    const expiryId = state.sessions[0].id;
-    const liveDb = new DatabaseSync(databasePath);
-    const expiring = JSON.parse(liveDb.prepare('SELECT payload_json FROM focus_sessions WHERE id = ?').get(expiryId).payload_json);
-    expiring.leaseUntil = '2000-01-01T00:00:00.000Z';
-    liveDb.prepare('UPDATE focus_sessions SET payload_json = ? WHERE id = ?').run(JSON.stringify(expiring), expiryId);
-    liveDb.close();
+    // Throttled/suspended tabs keep their round, including after API restart.
+    await command('start', { taskIds: ['a'], spaceId: 'background-room' });
+    const backgroundId = state.sessions[0].id;
+    function missHeartbeats(id = backgroundId) {
+      const liveDb = new DatabaseSync(databasePath);
+      const background = JSON.parse(liveDb.prepare('SELECT payload_json FROM focus_sessions WHERE id = ?').get(id).payload_json);
+      background.startedAt = new Date(Date.now() - 7_200_000).toISOString();
+      background.lastSeenAt = new Date(Date.now() - 3_600_000).toISOString();
+      background.leaseUntil = new Date(Date.now() - 3_480_000).toISOString();
+      liveDb.prepare('UPDATE focus_sessions SET payload_json = ? WHERE id = ?').run(JSON.stringify(background), id);
+      liveDb.close();
+      return background;
+    }
+    const staleRevision = state.revision;
+    missHeartbeats();
     state = (await request('/v1/focus')).body;
-    assert.equal(state.sessions[0].endReason, 'space-disconnected');
-    assert.equal(state.sessions[0].focusEndedAt, expiring.lastSeenAt);
-    assert.equal(state.sessions[0].phase, 'ended');
+    assert.equal(state.revision, staleRevision);
+    assert.equal(state.sessions[0].phase, 'focus');
+    assert.equal(state.sessions[0].endedAt, null);
+    assert.ok(focusDuration(state.sessions[0], Date.parse(state.serverNow)) >= 7_200_000);
+    // Settings and unrelated planner saves must not interpret silence as an exit.
+    assert.equal((await command('settings', { minimumMinutes: 9, breakMinutes: 4 })).status, 200);
+    planner = (await request('/v1/state', 'PUT', { expectedRevision: planner.revision, tasks, settings: {}, theme: 'night' })).body;
+    assert.equal((await request('/v1/focus')).body.sessions[0].endedAt, null);
     await stop(); await start();
     state = (await request('/v1/focus')).body;
+    assert.equal(state.sessions[0].id, backgroundId);
+    assert.equal(state.sessions[0].endedAt, null);
+    state = (await presence('background-room')).body;
+    assert.equal(state.sessions[0].id, backgroundId);
+    assert.equal(state.sessions[0].phase, 'focus');
+    assert.equal(state.sessions[0].endedAt, null);
+    assert.ok(Date.parse(state.sessions[0].leaseUntil) > Date.parse(state.serverNow));
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'new-room' })).status, 400);
+    // A deliberate new entry can replace a crashed browser, saving only confirmed time.
+    const abandoned = missHeartbeats();
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'new-room' })).status, 200);
+    const reclaimed = state.sessions.find((item) => item.id === backgroundId);
+    assert.equal(reclaimed.endReason, 'space-replaced');
+    assert.equal(reclaimed.focusEndedAt, abandoned.lastSeenAt);
+    assert.equal(reclaimed.endedAt, abandoned.lastSeenAt);
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'background-room' })).status, 400);
+    assert.equal((await presence('background-room', true)).body.sessions[0].endedAt, null);
+    state = (await presence('new-room', true)).body;
     assert.ok(state.sessions.every((item) => item.endedAt));
+    // A break taken after the last ping is a later confirmed boundary.
+    await command('start', { taskIds: ['a'], spaceId: 'abandoned-break' });
+    await command('break', { spaceId: 'abandoned-break' });
+    const paused = missHeartbeats(state.sessions[0].id);
+    await command('start', { taskIds: ['a'], spaceId: 'after-break' });
+    const savedBreak = state.sessions.find((item) => item.id === paused.id);
+    assert.equal(savedBreak.endedAt, paused.focusEndedAt);
+    assert.equal(savedBreak.focusEndedAt, paused.focusEndedAt);
+    missHeartbeats(state.sessions[0].id);
+    planner = (await request('/v1/state', 'PUT', { expectedRevision: planner.revision, tasks: tasks.map((item) => item.id === 'a' ? { ...item, status: 'pending' } : item), settings: {}, theme: 'night' })).body;
+    state = (await request('/v1/focus')).body;
+    assert.equal(state.sessions[0].endReason, 'tasks-inactive');
+    assert.equal(state.sessions[0].focusEndedAt, planner.updatedAt);
     assert.deepEqual((await request('/v1/state')).body, planner);
 
     planner = (await request('/v1/state', 'PUT', { expectedRevision: planner.revision, tasks: [], settings: {}, theme: 'day' })).body;
