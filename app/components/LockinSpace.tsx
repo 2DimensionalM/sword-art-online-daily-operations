@@ -15,6 +15,7 @@ export function LockinSpace({ taskId, beforeEnter, onExit }: { taskId: string; b
   const [busy, setBusy] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const [feedback, setFeedback] = useState(false);
+  const [roundCue, setRoundCue] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
   const owner = useRef('');
   const current = useRef<FocusState | null>(null);
@@ -26,6 +27,10 @@ export function LockinSpace({ taskId, beforeEnter, onExit }: { taskId: string; b
   const accept = useCallback((next: FocusState) => {
     if (!alive.current) return;
     if (current.current && (next.revision < current.current.revision || (next.revision === current.current.revision && next.serverNow < current.current.serverNow))) return;
+    const previousRound = current.current?.sessions.find((item) => item.spaceId === owner.current);
+    const nextRound = next.sessions.find((item) => item.spaceId === owner.current);
+    // Only celebrate a confirmed return to focus, never the initial entrance or a rejected request.
+    if (previousRound && (previousRound.phase === 'break' || previousRound.endedAt) && nextRound?.phase === 'focus' && !nextRound.endedAt && nextRound.id !== previousRound.id) setRoundCue(nextRound.id);
     current.current = next;
     offset.current = Date.parse(next.serverNow) - Date.now();
     setState(next);
@@ -116,6 +121,11 @@ export function LockinSpace({ taskId, beforeEnter, onExit }: { taskId: string; b
     const timer = window.setTimeout(() => setFeedback(false), 1400);
     return () => clearTimeout(timer);
   }, [feedback]);
+  useEffect(() => {
+    if (!roundCue) return;
+    const timer = window.setTimeout(() => setRoundCue(''), 1000);
+    return () => clearTimeout(timer);
+  }, [roundCue]);
 
   async function leave() {
     if (leavingRef.current) return;
@@ -163,16 +173,17 @@ export function LockinSpace({ taskId, beforeEnter, onExit }: { taskId: string; b
   const met = elapsed >= target * 60_000;
   const restDuration = (session?.breakMinutes ?? 3) * 60_000;
   const restRemaining = resting && session.focusEndedAt ? Math.max(0, restDuration - (now - Date.parse(session.focusEndedAt))) : 0;
-  return <dialog ref={dialog} className={`lockin-space ${active ? 'is-focusing' : ''} ${leaving ? 'is-leaving' : ''}`} aria-labelledby="lockin-space-title" onCancel={(event) => { event.preventDefault(); }}>
+  return <dialog ref={dialog} className={`lockin-space ${active ? 'is-focusing' : ''} ${roundCue ? 'is-refocusing' : ''} ${leaving ? 'is-leaving' : ''}`} aria-labelledby="lockin-space-title" onCancel={(event) => { event.preventDefault(); }}>
     <StudyScene />
     <div className="space-grain" aria-hidden="true" />
     <header className="space-topbar"><span><i /> {active ? 'ON AIR' : resting ? 'INTERMISSION' : session?.endedAt ? 'SESSION SAVED' : 'TUNING IN'}</span><span>DAILY OPS / PRIVATE STUDY</span></header>
     <div className="space-identity"><span className="space-kicker">YOU ARE NOW ENTERING</span><h2 id="lockin-space-title">LOCK <em>IN.</em></h2><p>现在，只做这一件事。</p></div>
     <section className="space-mission" aria-label="当前专注任务"><span>◈ CURRENT MISSION</span><h3>{session?.tasks[0]?.title ?? state?.eligibleTasks.find((task) => task.id === taskId)?.title ?? '正在连接你的任务…'}</h3><small>{session?.tasks[0]?.taskType ?? 'STUDY / CERTIFICATE / REVIEW'}</small></section>
-    <section className="space-timer" aria-label={resting ? '休息倒计时' : '专注计时'}><div className="space-timer-label"><span>{session?.endedAt ? '计时已停止' : resting ? restRemaining ? 'TAKE A BREATHER' : 'READY WHEN YOU ARE' : met ? 'LIMIT BREAK' : 'STAY WITH IT'}</span><b>{resting ? 'Ⅱ' : met ? '★' : '▶'}</b></div><time role="timer" aria-label={resting ? '剩余休息时间' : '本轮专注时长'}>{focusClock(resting ? restRemaining : elapsed)}</time><div className="space-progress" aria-label={resting ? `休息 ${session.breakMinutes} 分钟` : `起步目标 ${target} 分钟`}><i style={{ width: `${resting ? restRemaining / restDuration * 100 : Math.min(100, elapsed / (target * 60000) * 100)}%` }} /></div><p>{session?.endedAt ? '本轮已保存，可以再开一轮或退出空间。' : resting ? restRemaining ? `休息 ${session.breakMinutes} 分钟 · 专注计时已暂停。` : '休息结束，准备好再继续。' : met ? '进入状态了，按自己的节奏继续。' : `先专注 ${target} 分钟，慢慢进入状态。`}</p>{(active || resting) && <div className="space-pace-actions"><button className="space-pace-action" disabled={busy || leaving || !!error} onClick={() => void transition(resting ? 'resume' : 'break')}>{resting ? '继续专注 ↗' : `休息 ${session.breakMinutes} 分钟`}</button><button className="space-round-finish" disabled={busy || leaving || !!error} onClick={() => void transition('finish')}>结束本轮 ■</button></div>}{session?.endedAt && <button className="space-pace-action" disabled={busy || leaving || !!error} onClick={() => void start()}>再开一轮 ↗</button>}</section>
+    <section className="space-timer" aria-label={resting ? '休息倒计时' : '专注计时'}><div className="space-timer-label"><span>{session?.endedAt ? '计时已停止' : resting ? restRemaining ? 'TAKE A BREATHER' : 'READY WHEN YOU ARE' : met ? 'LIMIT BREAK' : 'STAY WITH IT'}</span><b>{resting ? 'Ⅱ' : met ? '★' : '▶'}</b></div><time role="timer" aria-label={resting ? '剩余休息时间' : '本轮专注时长'}>{focusClock(resting ? restRemaining : elapsed)}</time><div className="space-progress" aria-label={resting ? `休息 ${session.breakMinutes} 分钟` : `起步目标 ${target} 分钟`}><i style={{ width: `${resting ? restRemaining / restDuration * 100 : Math.min(100, elapsed / (target * 60000) * 100)}%` }} /></div><p>{session?.endedAt ? '本轮已保存，可以再开一轮或退出空间。' : resting ? restRemaining ? `休息 ${session.breakMinutes} 分钟 · 专注计时已暂停。` : '休息结束，准备好再继续。' : met ? '进入状态了，按自己的节奏继续。' : `先专注 ${target} 分钟，慢慢进入状态。`}</p>{(active || resting) && <div className="space-pace-actions"><button className="space-pace-action" disabled={busy || leaving || !!error} onClick={() => void transition(resting ? 'resume' : 'break')}>{resting ? busy ? '正在处理…' : '继续专注 ↗' : `休息 ${session.breakMinutes} 分钟`}</button><button className="space-round-finish" disabled={busy || leaving || !!error} onClick={() => void transition('finish')}>结束本轮 ■</button></div>}{session?.endedAt && <button className="space-pace-action" disabled={busy || leaving || !!error} onClick={() => void start()}>{busy ? '正在聚焦…' : '再开一轮 ↗'}</button>}</section>
     <footer className="space-controls"><button type="button" className="space-drift" disabled={!active || busy || leaving || !!error} onClick={() => void transition('drift')}><b>↩</b><span>分心了，回来<small>LOCK BACK IN · {session?.drifts.length ?? 0}</small></span></button><span className="space-quiet-note">ONE MISSION.<br />ONE MOMENT.</span><button type="button" className="space-exit" disabled={leaving} onClick={() => void leave()}><span>{leaving ? '正在停计…' : '退出空间'}<small>STOP & RETURN</small></span><b>↗</b></button></footer>
     {error && <div className="space-connection" role="alert"><span>{error}</span><button disabled={busy || leaving} onClick={() => void (session && pending.current?.action !== 'start' ? pending.current && ['drift', 'break', 'resume', 'finish'].includes(pending.current.action) ? transition(pending.current.action as 'drift' | 'break' | 'resume' | 'finish') : updateFocusPresence(owner.current).then((next) => { accept(next); setError(''); }).catch(() => setError('空间连接中断，请重试。')) : start())}>重新连接</button></div>}
     {feedback && <div className="space-feedback" role="status"><strong>GOOD CATCH.</strong><span>觉察到，就回来。</span></div>}
+    {roundCue && <div key={roundCue} className="space-round-cue" role="status"><div className="space-round-shade" aria-hidden="true" /><div className="space-round-verdict"><span><i aria-hidden="true">⌖</i> FOCUS ACQUIRED</span><strong>BACK <em>IN.</em></strong><p>新一轮，只做这一件事。</p></div></div>}
     <div className="space-entry-flash" aria-hidden="true"><strong>LOCK IN!</strong><span>ENTER YOUR STUDY SPACE</span></div>
   </dialog>;
 }

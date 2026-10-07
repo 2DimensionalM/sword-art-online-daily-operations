@@ -57,6 +57,24 @@
 .space-pace-actions { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin-top:8px; }
 .space-pace-actions .space-pace-action { margin:0; }
 .space-round-finish { min-height:44px; padding:4px; border:2px solid var(--color-ink); color:var(--color-paper); background:var(--color-ink); font:800 11px var(--font-cjk); }
+.space-pace-action:active:not(:disabled) { transform:translate(1px,2px); }
+/* A confirmed return to focus locks the timer, then leaves the room quiet again. */
+.is-refocusing { --refocus-duration:calc(var(--duration-enter) * 2.5); }
+.is-refocusing .space-timer { animation:space-timer-acquire var(--refocus-duration) var(--ease-snap) both; }
+.is-refocusing .space-timer::after { content:''; position:absolute; inset:-13px; pointer-events:none; background:linear-gradient(var(--color-signal) 0 0) left top/24px 3px no-repeat,linear-gradient(var(--color-signal) 0 0) left top/3px 24px no-repeat,linear-gradient(var(--color-signal) 0 0) right top/24px 3px no-repeat,linear-gradient(var(--color-signal) 0 0) right top/3px 24px no-repeat,linear-gradient(var(--color-signal) 0 0) left bottom/24px 3px no-repeat,linear-gradient(var(--color-signal) 0 0) left bottom/3px 24px no-repeat,linear-gradient(var(--color-signal) 0 0) right bottom/24px 3px no-repeat,linear-gradient(var(--color-signal) 0 0) right bottom/3px 24px no-repeat; filter:drop-shadow(1px 1px 0 var(--color-ink)); animation:space-timer-reticle var(--refocus-duration) var(--ease-snap) both; }
+.space-round-cue { position:absolute; z-index:5; inset:0; pointer-events:none; animation:space-round-clear var(--refocus-duration) linear both; }
+.space-round-shade { position:absolute; inset:0; background:var(--color-ink); animation:space-round-shade var(--refocus-duration) var(--ease-snap) both; }
+.space-round-verdict { position:absolute; left:32%; top:34%; padding:14px 22px 16px; color:var(--color-paper); background:var(--color-ink); border-left:7px solid var(--color-signal); box-shadow:5px 5px 0 var(--color-paper); transform:rotate(-6deg); animation:space-round-acquire var(--refocus-duration) var(--ease-snap) both; }
+.space-round-verdict > span { display:flex; align-items:center; gap:7px; color:var(--color-signal); font:900 9px var(--font-ui); letter-spacing:.13em; }
+.space-round-verdict i { font:900 20px/1 var(--font-ui); }
+.space-round-verdict strong { display:block; margin:4px 0; white-space:nowrap; font:italic 1000 clamp(42px,6vw,90px)/.95 var(--font-display); letter-spacing:-.06em; }
+.space-round-verdict em { font-style:inherit; color:var(--color-signal); }
+.space-round-verdict p { margin:9px 0 0; font:700 11px var(--font-cjk); }
+@keyframes space-timer-acquire { 0% { transform:rotate(-2deg) scale(1); } 24% { transform:rotate(-2deg) scale(1.045); box-shadow:9px 9px 0 var(--color-signal); } 55%,100% { transform:rotate(-2deg) scale(1); } }
+@keyframes space-timer-reticle { 0% { opacity:0; transform:scale(1.14); } 18%,65% { opacity:1; transform:scale(1); } 100% { opacity:0; transform:scale(.98); } }
+@keyframes space-round-acquire { 0% { opacity:0; transform:translate(-22px,12px) rotate(-8deg) scale(.92); } 20%,68% { opacity:1; transform:translate(0,0) rotate(-6deg) scale(1); } 100% { opacity:0; transform:translate(24px,-12px) rotate(-6deg) scale(1); } }
+@keyframes space-round-shade { 0%,100% { opacity:0; } 24%,62% { opacity:.2; } }
+@keyframes space-round-clear { 0%,99% { visibility:visible; } 100% { visibility:hidden; } }
 .space-controls { position:absolute; z-index:3; bottom:4%; left:4%; right:4%; display:flex; justify-content:space-between; align-items:center; gap:20px; }
 .space-controls button { display:flex; align-items:center; justify-content:center; gap:18px; min-height:62px; padding:9px 20px; border:3px solid var(--color-paper); color:var(--color-paper); background:var(--color-ink); box-shadow:4px 4px 0 var(--color-signal); transform:skewX(-6deg); transition:transform 180ms var(--ease-snap),box-shadow 180ms; }
 .space-controls button:hover:not(:disabled) { transform:skewX(-6deg) translate(-2px,-2px); box-shadow:6px 6px 0 var(--color-signal); }
@@ -81,9 +99,11 @@
   .space-timer { right:5%; top:auto; bottom:17%; width:50%; padding:9px 12px; border-width:3px; box-shadow:4px 4px 0 var(--color-signal); }.space-timer-label { font-size:8px; }.space-timer time { font-size:clamp(32px,11vw,50px); margin:5px 0; }.space-timer p { font-size:8px; }.space-progress { height:5px; }
   .space-controls { bottom:4%; left:5%; right:5%; gap:12px; }.space-controls button { min-height:58px; gap:9px; flex:1; padding:7px; }.space-controls button > span { font-size:12px; }.space-controls small { font-size:6px; letter-spacing:.06em; }.space-controls button > b { font-size:22px; }.space-quiet-note { display:none; }
   .space-connection { bottom:13%; left:5%; right:5%; padding:5px 8px; font-size:9px; }.space-connection button { padding:4px 8px; }.space-feedback { left:10%; top:40%; padding:16px; }.space-feedback strong { font-size:34px; }
+  .space-round-verdict { top:30%; left:9%; padding:12px 16px; }.space-round-verdict strong { font-size:48px; }.space-round-verdict p { font-size:10px; }
   .lockin-history-tools { grid-template-columns:1fr; padding:12px; }.lockin-record-scroll { height:300px; padding-inline:12px; }.lockin-record summary { grid-template-columns:1fr auto; gap:6px; }.lockin-record summary strong { grid-column:1/-1; grid-row:2; }.lockin-record summary span { grid-column:1/-1; }.lockin-record summary b { font-size:22px; }.lockin-record-detail { padding-inline:0; }
 }
 @media(max-height:560px) {
   .space-topbar { top:10px; }.space-identity { top:21%; }.space-mission { top:19%; }.space-mission h3 { -webkit-line-clamp:2; font-size:12px; }.space-timer { top:auto; bottom:24%; padding:7px 12px; }.space-timer time { font-size:10vh; margin:4px 0; }.space-timer p { display:none; }.space-controls { bottom:4%; }.space-controls button { min-height:46px; padding:5px 14px; }.space-connection { bottom:18%; }.space-identity p { display:none; }
 }
 @media(prefers-reduced-motion:reduce) { .lockin-space *,.lockin-space *::before,.lockin-space *::after,.mission-lockin-portal,.mission-lockin-portal > span { animation:none!important; transition:none!important; }.space-entry-flash { display:none; }.study-scene { transform:none; } }
+@media(prefers-reduced-motion:reduce) { .is-refocusing .space-timer::after,.space-round-shade { display:none; }.space-round-verdict { transform:none; box-shadow:none; }.space-pace-action:active:not(:disabled) { transform:none; } }
