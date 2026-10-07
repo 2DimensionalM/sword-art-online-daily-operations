@@ -3,7 +3,9 @@
 import { Fragment, FormEvent, useCallback, useEffect, useId, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { DiscardSignalDialog } from './components/DiscardSignalDialog';
 import { GoalRadar, SignalRoom, SignalTicker, useSignals } from './components/SignalRoom';
-import { LockinChannel } from './components/LockinChannel';
+import { LockinSettings } from './components/LockinChannel';
+import { LockinSpace } from './components/LockinSpace';
+import { eligibleFocusTasks } from './lib/focus-model';
 import { BrandLockup } from './components/BrandLockup';
 import { LifeDashboard, type DashboardCampaignScale, type DashboardTask } from './components/LifeDashboard';
 import { loadDeadlineEvents, type DeadlineEvent } from './lib/deadline-store';
@@ -15,7 +17,7 @@ import { loadTaskDeletionEvents, recordTaskDeletionEvent, removeTaskDeletionEven
 type Status = 'pending' | 'inProgress' | 'completed';
 type Priority = 'must' | 'high' | 'medium' | 'low';
 type Recurrence = 'none' | 'daily' | 'weekdays' | 'weekly';
-type View = 'dashboard' | 'board' | 'table' | 'calendar' | 'sleep' | 'signals' | 'focus' | 'settings';
+type View = 'dashboard' | 'board' | 'table' | 'calendar' | 'sleep' | 'signals' | 'settings';
 type ChoiceFieldName = 'status' | 'priority' | 'taskType' | 'location' | 'recurrence';
 type DateFieldName = 'startedAt' | 'completedAt' | 'dueAt';
 type TypeColor = 'purple' | 'blue' | 'green' | 'yellow';
@@ -150,7 +152,6 @@ const navItems: { id: View; no: string; title: string; subtitle: string; mark: s
   { id: 'sleep', no: '03', title: 'NIGHT LOG', subtitle: '夜间状态档案', mark: '☾' },
   { id: 'calendar', no: '04', title: 'CALENDAR', subtitle: '月度行动日历', mark: '◆' },
   { id: 'signals', no: '05', title: 'SIGNAL ROOM', subtitle: '心愿放送室', mark: '◈' },
-  { id: 'focus', no: '07', title: 'LOCKIN CHANNEL', subtitle: '专注频道', mark: '↩' },
   { id: 'settings', no: '06', title: 'DESIGN', subtitle: '默认设置', mark: '✦' },
 ];
 
@@ -1282,30 +1283,31 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
   </div><div ref={editorRef} className="rich-description-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="补充任务背景、完成标准或下一步…" onFocus={rememberSelection} onMouseDown={focusEmptyChecklistItem} onCopy={copyDescriptionText} onCut={(event) => copyDescriptionText(event, true)} onPaste={pastePlainText} onKeyDown={(event) => { continueChecklist(event); if (!event.defaultPrevented) deleteEmptyChecklistItem(event); }} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onClick={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === 'checkbox') { target.toggleAttribute('checked', target.checked); onChange(editorRef.current?.innerHTML ?? ''); } }} onInput={() => { rememberSelection(); onChange(editorRef.current?.innerHTML ?? ''); }} /></div>;
 }
 
-function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen, onStart, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
+function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen, onStart, onLockin, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
   task: Task; color: TypeColor; now: Date; dragging: boolean; landed: boolean; dividerDropEdge?: 'before' | 'after'; onOpen: () => void;
-  onStart: () => void;
+  onStart: () => void; onLockin?: () => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void;
   onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDragLeave?: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void;
 }) {
   const countdowns = countdownSignals(task, now);
   const countdown = countdowns.find((signal) => signal.kind === 'start') ?? countdowns.sort(compareCountdownSignals)[0];
   const completedLate = task.status === 'completed' && Boolean(task.completedAt && task.dueAt && +new Date(task.completedAt) > +new Date(task.dueAt));
-  return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''}`}
+  return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${onLockin ? 'has-lockin-portal' : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''}`}
     draggable tabIndex={0} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={onOpen}
-    onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); onOpen(); } }}>
+    onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
     {dividerDropEdge && <span className={`pending-divider-drop-preview is-${dividerDropEdge}`} aria-hidden="true" />}
     <div className="card-stripe" />
     <div className="card-topline"><span className="task-type">{task.location}</span><div className="task-flags">{task.recurrence !== 'none' && <span title={recurrenceLabel(task)} className="repeat-icon"><i aria-hidden="true">↻</i></span>}<span className="priority-label">{task.priority === 'must' ? 'MUST' : task.priority === 'high' ? 'HIGH' : task.priority === 'medium' ? 'MID' : 'LOW'}</span></div></div>
     <h3>{task.title}</h3>
     <p className={`card-description ${task.description ? '' : 'is-empty'}`} aria-hidden={task.description ? undefined : true}>{descriptionToText(task.description) || '\u00a0'}</p>
     {task.status === 'pending' && <span className="mission-state-signal pending-state-signal" aria-hidden="true">WAIT</span>}
-    {task.status === 'inProgress' && <span className="mission-state-signal" aria-hidden="true">LIVE</span>}
+    {task.status === 'inProgress' && !onLockin && <span className="mission-state-signal" aria-hidden="true">LIVE</span>}
     {task.status === 'completed' && <span className="mission-state-signal" aria-hidden="true">CLEAR</span>}
     {countdown && <div className={`card-countdown countdown-${countdown.kind} urgency-${countdown.urgency}`} aria-label={`${countdownSignalLabel(countdown)} ${countdownText(countdown.targetAt, now)}`}><div><span>{countdown.kind === 'start' ? '▶ START' : '⊘ DEADLINE'}</span><small>{countdown.kind === 'start' ? '行动窗口' : '禁忌时限'}</small></div><strong>{countdownText(countdown.targetAt, now)}</strong>{countdown.kind === 'start' ? <button type="button" aria-label={`开始任务：${task.title}`} onClick={(event) => { event.stopPropagation(); onStart(); }}>▶</button> : <i className="deadline-seal" aria-hidden="true" />}</div>}
+    {onLockin && <button type="button" className="mission-lockin-portal" aria-label={`进入专注空间：${task.title}`} onClick={(event) => { event.stopPropagation(); onLockin(); }} onPointerDown={(event) => event.stopPropagation()} draggable={false}><small>LIVE</small><strong>LOCK IN</strong><span aria-hidden="true">↗</span></button>}
     <div className="card-meta"><span>{task.taskType}</span>
       {task.status === 'pending' && <span className={task.dueAt && +new Date(task.dueAt) < +now ? 'is-overdue' : ''}>⌁ {task.dueAt ? formatTime(task.dueAt) : 'NO DEADLINE'}</span>}
-      {task.status === 'inProgress' && <span>▶ {formatTime(task.startedAt)}</span>}
+      {task.status === 'inProgress' && !onLockin && <span>▶ {formatTime(task.startedAt)}</span>}
       {task.status === 'completed' && <span className={completedLate ? 'is-overdue' : ''}>✓ {formatTime(task.completedAt)}</span>}
     </div><div className="compact-card-meta"><span>{task.taskType}</span>{task.status === 'completed'
       ? <span className={completedLate ? 'is-overdue' : ''}>✓ {formatTime(task.completedAt)}</span>
@@ -1408,6 +1410,7 @@ export default function Home() {
   const [signalDirty, setSignalDirty] = useState(false);
   const [pendingSignalView, setPendingSignalView] = useState<View | null>(null);
   const [view, setView] = useState<View>('dashboard');
+  const [lockinTaskId, setLockinTaskId] = useState<string | null>(null);
   const [viewRestored, setViewRestored] = useState(false);
   const [dashboardScale, setDashboardScale] = useState<DashboardCampaignScale>('week');
   const [dashboardPeriodId, setDashboardPeriodId] = useState('');
@@ -1491,7 +1494,7 @@ export default function Home() {
 
   useEffect(() => {
     const savedView = window.sessionStorage.getItem(VIEW_SESSION_KEY);
-    const restoredView = navItems.some((item) => item.id === savedView) ? savedView as View : navItems[0].id;
+    const restoredView = savedView === 'focus' ? 'board' : navItems.some((item) => item.id === savedView) ? savedView as View : navItems[0].id;
     const savedDashboardScale = window.sessionStorage.getItem(DASHBOARD_SCALE_SESSION_KEY);
     const restoredDashboardScale: DashboardCampaignScale = savedDashboardScale === 'month' || savedDashboardScale === 'quarter' ? savedDashboardScale : 'week';
     const restoredDashboardPeriodId = window.sessionStorage.getItem(DASHBOARD_PERIOD_SESSION_KEY) ?? '';
@@ -1752,14 +1755,14 @@ export default function Home() {
     }
     const changed = reminding.find((signal) => reminderBands.current.get(`${signal.task.id}:${signal.kind}`) !== signal.urgency);
     for (const signal of reminding) reminderBands.current.set(`${signal.task.id}:${signal.kind}`, signal.urgency);
-    if (!changed || changed.urgency === 'oneHour' || changed.urgency === 'halfHour' || view === 'focus') return;
+    if (!changed || changed.urgency === 'oneHour' || changed.urgency === 'halfHour' || lockinTaskId !== null) return;
     setImpact({
       title: countdownImpactTitle(changed),
       subtitle: `${changed.task.title} · ${countdownSignalLabel(changed)}`,
       tier: changed.urgency,
       origin: 'countdown',
     });
-  }, [clock, hydrated, missionTasks, view]);
+  }, [clock, hydrated, missionTasks, view, lockinTaskId]);
 
   const grouped = useMemo(() => boardMeta.reduce((result, board) => {
     const today = localDateKey(new Date());
@@ -2220,6 +2223,7 @@ export default function Home() {
     setToast('地点已添加');
   };
   const navigateTo = (nextView: View, onArrive?: () => void, discardApproved = false) => {
+    if (lockinTaskId) return;
     if (nextView !== view && signalDirty && !discardApproved) { setPendingSignalView(nextView); return; }
     setDayAgendaOpen(false);
     setDraft(null);
@@ -2396,10 +2400,10 @@ export default function Home() {
       <BrandLockup sectionTitle={activeNav.title} sectionSubtitle={activeNav.subtitle} username={settings.username} />
       <div className="day-card" aria-label="今日日期"><span>{new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(now).toUpperCase()}</span><strong>{String(now.getDate()).padStart(2, '0')}</strong><em>{new Intl.DateTimeFormat('en-US', { month: 'short', year: 'numeric' }).format(now).toUpperCase()}</em></div>
       <div className="mission-summary"><span>TODAY&apos;S CLEAR</span><strong>{completedToday}<small> / {todayActionTasks.length}</small></strong><div className="summary-track"><i style={{ width: `${todayActionTasks.length ? Math.min(100, completedToday / todayActionTasks.length * 100) : 0}%` }} /></div></div>
-      {view !== 'settings' && view !== 'sleep' && view !== 'signals' && view !== 'focus' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
+      {view !== 'settings' && view !== 'sleep' && view !== 'signals' && <button className="add-task" onClick={() => openNewTask()}><span>＋</span><strong>NEW MISSION</strong><small>添加任务</small></button>}
     </header>
 
-    {view === 'focus' && <LockinChannel taskTitles={taskTitles} onCompleteTask={(id) => moveTask(id, 'completed')} onOpenBoard={() => navigateTo('board')} />}
+
 
     {view === 'signals' && <SignalRoom signals={signals} taskTypes={settings.taskTypes.map((item) => item.value)} onDirtyChange={setSignalDirty} />}
 
@@ -2499,6 +2503,7 @@ export default function Home() {
                   : undefined
               : pendingDividerCatch?.taskId === task.id ? (pendingDividerCatch.side === 'below' ? 'before' : 'after') : undefined}
             onStart={() => moveTask(task.id, 'inProgress')}
+            onLockin={eligibleFocusTasks([task]).length ? () => { setImpact(null); setLockinTaskId(task.id); } : undefined}
             onOpen={() => setDraft(task)} onDragStart={(event) => { setDraggingPendingDivider(false); setPendingDividerDropIndex(null); setPendingDividerCatch(null); setDraggingId(task.id); event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', task.id); }} onDragEnd={() => { setDraggingId(''); setPendingDividerDropIndex(null); setPendingDividerCatch(null); setDropTarget(''); }}
             onDragOver={(event) => {
               if (draggingPendingDivider) {
@@ -2684,18 +2689,20 @@ export default function Home() {
             </div>
           </div>
         </section>
+        <LockinSettings taskTitles={taskTitles} />
       </div>
     </section>}
 
     <footer className="app-footer"><span>{activeNav.title}</span><i /><span>自动时间戳已开启</span><i /><span>本机自动保存</span></footer>
     </div>
 
-    {view !== 'focus' && <SignalTicker signals={signals} />}
+    {lockinTaskId && <LockinSpace key={lockinTaskId} taskId={lockinTaskId} onExit={() => setLockinTaskId(null)} beforeEnter={async () => { await new Promise((resolve) => window.setTimeout(resolve, 300)); await saveQueue.current; }} />}
+    {!lockinTaskId && <SignalTicker signals={signals} />}
     {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
     {cancellationRemovalTarget && <CancellationRemovalDialog event={cancellationRemovalTarget} busy={cancellationRemovalBusy} onCancel={() => setCancellationRemovalTarget(null)} onConfirm={() => void removeCancellationEvent()} />}
     {sleepRemovalTarget && <SleepRemovalDialog record={sleepRemovalTarget} busy={sleepRemovalBusy} error={sleepRemovalError} returnFocus={sleepRemovalTrigger} onCancel={() => setSleepRemovalTarget(null)} onConfirm={() => void deleteSleepRecord()} />}
 
-    {impact && !(view === 'focus' && impact.origin === 'countdown') && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
+    {impact && !lockinTaskId && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}
 
     {dayAgendaOpen && <div className="modal-backdrop day-schedule-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) setDayAgendaOpen(false); }}>
       <section className="day-schedule-modal" role="dialog" aria-modal="true" aria-labelledby="day-schedule-title">

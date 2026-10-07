@@ -5,6 +5,8 @@ import './brand.css';
 import './signal-room.css';
 import './homepage.css';
 import './lockin-channel.css';
+import './lockin-space.css';
+import './study-scene.css';
 
 export const metadata: Metadata = {
   title: 'Sword Art Online',

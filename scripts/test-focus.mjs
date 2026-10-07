@@ -11,8 +11,8 @@ import { eligibleFocusTasks, focusClock, focusDayStats, focusDuration } from '..
 const task = (id, taskType = '📚 学业', status = 'inProgress') => ({ id, index: 1, title: `任务 ${id}`, description: '', status, taskType, startedAt: '2026-09-27T09:00:00.000Z', completedAt: '', dueAt: '', priority: 'medium', location: '家', recurrence: 'none', seriesId: '', manualOrder: null, isRecurrenceTemplate: false });
 
 test('eligibility excludes work, pending, completed and recurrence templates', () => {
-  const tasks = [task('a'), task('b', '🎓 证书'), task('c', '💼 工作'), task('d', '📚 学业', 'pending'), task('e', '📚 学业', 'completed'), { ...task('f'), isRecurrenceTemplate: true }, task('g', '工作学习')];
-  assert.deepEqual(eligibleFocusTasks(tasks).map((item) => item.id), ['a', 'b']);
+  const tasks = [task('a'), task('b', '🎓 证书'), task('c', '💼 工作'), task('d', '📚 学业', 'pending'), task('e', '📚 学业', 'completed'), { ...task('f'), isRecurrenceTemplate: true }, task('g', '工作学习'), task('h', '🎯 复习'), task('i', '学习'), task('j', '复习计划'), task('k', '阅读学习')];
+  assert.deepEqual(eligibleFocusTasks(tasks).map((item) => item.id), ['a', 'b', 'h', 'i']);
 });
 
 test('day statistics split midnight, count shared time once, and count distraction events', () => {
@@ -69,6 +69,7 @@ test('focus API preserves planner data, validates transitions, deduplicates retr
     const sessionId = state.sessions[0].id;
     assert.equal(state.sessions[0].tasks.length, 2);
     assert.equal(state.sessions[0].minimumMinutes, 2);
+    assert.equal(state.sessions[0].breakMinutes, 1);
     assert.equal((await command('start', { taskIds: ['a'] })).status, 400);
     assert.equal((await request('/v1/focus', 'POST', { requestId: 'stale', expectedRevision: beforeStart, action: 'start', taskIds: ['a'] })).status, 409);
     assert.equal((await command('recover')).status, 400);
@@ -105,6 +106,7 @@ test('focus API preserves planner data, validates transitions, deduplicates retr
     await command('resume', { taskIds: ['b'] });
     assert.equal(state.sessions.length, 2);
     assert.equal(state.sessions[0].minimumMinutes, 12);
+    assert.equal(state.sessions[0].breakMinutes, 5);
     assert.equal(state.sessions[1].focusEndedAt, focusEndedAt);
     assert.ok(state.sessions[1].endedAt);
     await command('finish');
@@ -131,6 +133,61 @@ test('focus API preserves planner data, validates transitions, deduplicates retr
     assert.equal(state.sessions.some((session) => session.id === removedId), false);
     await stop(); await start();
     assert.equal((await request('/v1/focus')).body.sessions.some((session) => session.id === removedId), false);
+    assert.deepEqual((await request('/v1/state')).body, planner);
+
+    // Space presence is scoped, revision-independent and never resumes after exit.
+    planner = (await request('/v1/state', 'PUT', { expectedRevision: planner.revision, tasks, settings: {}, theme: 'day' })).body;
+    state = (await request('/v1/focus')).body;
+    assert.equal((await command('start', { taskIds: ['a', 'b'], spaceId: 'room-a' })).status, 400);
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'room-a' })).status, 200);
+    let roomId = state.sessions[0].id;
+    assert.ok(state.sessions[0].leaseUntil);
+    assert.equal((await command('drift')).status, 400);
+    assert.equal((await command('drift', { spaceId: 'room-a' })).status, 200);
+    const presence = (spaceId, leave = false) => request('/v1/focus/presence', 'POST', { spaceId, leave });
+    assert.equal((await presence('other-room', true)).body.sessions[0].endedAt, null);
+    const ping = await presence('room-a');
+    assert.equal(ping.body.revision, state.revision);
+    assert.ok(Date.parse(ping.body.sessions[0].leaseUntil) > Date.parse(ping.body.serverNow));
+    assert.equal((await command('break', { spaceId: 'room-a' })).status, 200);
+    const breakEnd = state.sessions[0].focusEndedAt;
+    assert.equal((await command('resume', { taskIds: ['a'], spaceId: 'other-room' })).status, 400);
+    assert.equal((await command('resume', { taskIds: ['b'], spaceId: 'room-a' })).status, 400);
+    assert.equal((await command('resume', { taskIds: ['a'], spaceId: 'room-a' })).status, 200);
+    assert.equal(state.sessions[0].spaceId, 'room-a');
+    assert.equal(state.sessions[1].focusEndedAt, breakEnd);
+    assert.equal(state.sessions[1].phase, 'ended');
+    const completedRound = state.sessions[0].id;
+    assert.equal((await command('finish', { spaceId: 'room-a' })).status, 200);
+    assert.ok(state.sessions.find((item) => item.id === completedRound).endedAt);
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'room-a' })).status, 200);
+    assert.equal(state.sessions[0].spaceId, 'room-a');
+    assert.notEqual(state.sessions[0].id, completedRound);
+    roomId = state.sessions[0].id;
+    await command('settings', { minimumMinutes: 8, breakMinutes: 3 });
+    state = (await presence('room-a', true)).body;
+    const stopped = state.sessions.find((item) => item.id === roomId);
+    assert.equal(stopped.endReason, 'space-exit');
+    assert.equal(stopped.focusEndedAt, stopped.endedAt);
+    assert.equal((await presence('room-a', true)).body.revision, state.revision);
+    assert.equal((await presence('room-a')).body.sessions.find((item) => item.id === roomId).endedAt, stopped.endedAt);
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'room-a' })).status, 400);
+    await presence('cancel-before-start', true);
+    assert.equal((await command('start', { taskIds: ['a'], spaceId: 'cancel-before-start' })).status, 400);
+    await command('start', { taskIds: ['a'], spaceId: 'expired-room' });
+    const expiryId = state.sessions[0].id;
+    const liveDb = new DatabaseSync(databasePath);
+    const expiring = JSON.parse(liveDb.prepare('SELECT payload_json FROM focus_sessions WHERE id = ?').get(expiryId).payload_json);
+    expiring.leaseUntil = '2000-01-01T00:00:00.000Z';
+    liveDb.prepare('UPDATE focus_sessions SET payload_json = ? WHERE id = ?').run(JSON.stringify(expiring), expiryId);
+    liveDb.close();
+    state = (await request('/v1/focus')).body;
+    assert.equal(state.sessions[0].endReason, 'space-disconnected');
+    assert.equal(state.sessions[0].focusEndedAt, expiring.lastSeenAt);
+    assert.equal(state.sessions[0].phase, 'ended');
+    await stop(); await start();
+    state = (await request('/v1/focus')).body;
+    assert.ok(state.sessions.every((item) => item.endedAt));
     assert.deepEqual((await request('/v1/state')).body, planner);
 
     planner = (await request('/v1/state', 'PUT', { expectedRevision: planner.revision, tasks: [], settings: {}, theme: 'day' })).body;

@@ -5,6 +5,9 @@ export type FocusSession = {
   focusEndedAt: string | null;
   endedAt: string | null;
   phase: 'focus' | 'break' | 'ended';
+  spaceId?: string;
+  lastSeenAt?: string;
+  leaseUntil?: string;
   minimumMinutes: number;
   breakMinutes: number;
   tasks: (Pick<FocusTask, 'id' | 'title' | 'taskType'> & { unlinkedAt?: string; finalStatus?: string })[];
@@ -12,10 +15,10 @@ export type FocusSession = {
   drifts: { at: string }[];
 };
 export type FocusState = { eligibleTasks: FocusTask[]; revision: number; settings: { minimumMinutes: number; breakMinutes: number }; sessions: FocusSession[]; serverNow: string };
-export type FocusCommand = { requestId: string; expectedRevision: number; action: 'start' | 'resume' | 'drift' | 'break' | 'finish' | 'settings' | 'deleteSession'; targetSessionId?: string; sessionId?: string; taskIds?: string[]; minimumMinutes?: number; breakMinutes?: number };
+export type FocusCommand = { requestId: string; expectedRevision: number; action: 'start' | 'resume' | 'drift' | 'break' | 'finish' | 'settings' | 'deleteSession'; targetSessionId?: string; sessionId?: string; spaceId?: string; taskIds?: string[]; minimumMinutes?: number; breakMinutes?: number };
 
 export function eligibleFocusTasks(tasks: FocusTask[]) {
-  return tasks.filter((task) => task.status === 'inProgress' && !task.isRecurrenceTemplate && /(学业|学习|复习|证书)/u.test(task.taskType) && !/工作/u.test(task.taskType));
+  return tasks.filter((task) => task.status === 'inProgress' && !task.isRecurrenceTemplate && ['学业', '学习', '复习', '证书'].includes(task.taskType.replace(/[^\p{L}\p{N}]/gu, '')));
 }
 
 export function focusDuration(session: FocusSession, now: number) {

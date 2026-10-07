@@ -41,14 +41,14 @@ export async function savePlannerState<Task, Settings>(state: SavePlannerState<T
 
 // Attention records use the same loopback transport, independently of planner writes.
 export async function loadFocusState(): Promise<import('./focus-model').FocusState> {
-  const response = await fetch('http://127.0.0.1:43110/v1/focus', { cache: 'no-store' });
+  const response = await fetch('http://127.0.0.1:43110/v1/focus', { cache: 'no-store', signal: AbortSignal.timeout(8000) });
   if (!response.ok) throw new Error('专注频道连接中断，请重试。');
   return response.json();
 }
 
 export async function sendFocusCommand(command: import('./focus-model').FocusCommand) {
   const response = await fetch('http://127.0.0.1:43110/v1/focus', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command),
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(command), signal: AbortSignal.timeout(8000),
   });
   const body = await response.json();
   if (!response.ok && response.status !== 409) {
@@ -56,4 +56,18 @@ export async function sendFocusCommand(command: import('./focus-model').FocusCom
     throw Object.assign(new Error(message), { confirmedRejected: true });
   }
   return { state: body as import('./focus-model').FocusState, conflicted: response.status === 409 };
+}
+
+// A space owns its presence token; leaving never depends on an optimistic revision.
+export async function updateFocusPresence(spaceId: string, leave = false): Promise<import('./focus-model').FocusState> {
+  const response = await fetch('http://127.0.0.1:43110/v1/focus/presence', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ spaceId, leave }), keepalive: leave, signal: AbortSignal.timeout(8000),
+  });
+  if (!response.ok) throw new Error('空间连接中断，请重试。');
+  return response.json();
+}
+
+export function leaveFocusOnPageHide(spaceId: string) {
+  navigator.sendBeacon('http://127.0.0.1:43110/v1/focus/presence', new Blob([JSON.stringify({ spaceId, leave: true })], { type: 'text/plain' }));
 }

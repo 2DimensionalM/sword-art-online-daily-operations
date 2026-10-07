@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { focusClock, focusDayKey, focusDayStats, focusDuration, type FocusSession } from '../lib/focus-model';
+import { focusClock, focusDuration, type FocusSession } from '../lib/focus-model';
 
 type HistoryRange = 'all' | '7d' | '30d';
 const historyRanges: { value: HistoryRange; label: string }[] = [
@@ -10,17 +10,11 @@ const historyRanges: { value: HistoryRange; label: string }[] = [
   { value: '30d', label: '近 30 天' },
 ];
 
-export function LockinRecords({ sessions, taskTitles, now, section, onDelete }: { sessions: FocusSession[]; taskTitles: ReadonlyMap<string, string>; now: number; section: 'today' | 'archive'; onDelete: (session: FocusSession) => void }) {
+export function LockinRecords({ sessions, taskTitles, now, onDelete }: { sessions: FocusSession[]; taskTitles: ReadonlyMap<string, string>; now: number; onDelete: (session: FocusSession) => void }) {
   const [historyQuery, setHistoryQuery] = useState('');
   const [historyRange, setHistoryRange] = useState<HistoryRange>('all');
   const [rangeOpen, setRangeOpen] = useState(false);
   const rangeMenuRef = useRef<HTMLDivElement>(null);
-  const today = focusDayStats(sessions, new Date(now), now);
-  const days = Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(now); day.setDate(day.getDate() - 6 + index);
-    return { day, ...focusDayStats(sessions, day, now) };
-  });
-  const maxDay = Math.max(60000, ...days.map((day) => day.total));
   const history = sessions.filter((session) => session.endedAt);
   const normalizedQuery = historyQuery.trim().toLocaleLowerCase('zh-CN');
   const rangeDays = historyRange === '7d' ? 7 : historyRange === '30d' ? 30 : 0;
@@ -51,7 +45,7 @@ export function LockinRecords({ sessions, taskTitles, now, section, onDelete }: 
     };
   }, [rangeOpen]);
 
-  if (section === 'archive') return <section id="lockin-record-panel" className="lockin-record-panel lockin-history-panel" aria-label="历史记录">
+  return <section id="lockin-record-panel" className="lockin-record-panel lockin-history-panel" aria-label="历史记录">
     <div className="lockin-history-tools">
       <label className="lockin-history-field"><span>SEARCH / 搜索</span><input type="search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="任务标题或类型…" /></label>
       <div className="lockin-history-range" ref={rangeMenuRef} data-open={rangeOpen}>
@@ -71,10 +65,5 @@ export function LockinRecords({ sessions, taskTitles, now, section, onDelete }: 
         </details><button className="lockin-delete" aria-label={`删除记录 ${new Date(session.startedAt).toLocaleString('zh-CN')}`} onClick={() => onDelete(session)}>×</button>
       </article>)}
     </div>
-  </section>;
-  return <section id="lockin-record-panel" className="lockin-record-panel" aria-label="今日记录">
-    <div className="lockin-stats">{[['计时', focusClock(today.total)], ['最长一轮', focusClock(today.longest)], ['专注轮次', String(today.rounds)], ['发现分心', String(today.drifts)]].map(([label, value]) => <article key={label}><span>{label}</span><strong>{value}</strong></article>)}</div>
-    <div className="lockin-week" aria-label="七天计时时长">{days.map((day) => <div key={focusDayKey(day.day.getTime())}><span>{Math.floor(day.total / 60000)}m</span><div><i style={{ height: `${day.total / maxDay * 100}%` }} /></div><small>{day.day.getMonth() + 1}/{day.day.getDate()}</small></div>)}</div>
-    <small className="lockin-metric-note">计时含分心期间 · 分心为主动觉察记录</small>
   </section>;
 }
