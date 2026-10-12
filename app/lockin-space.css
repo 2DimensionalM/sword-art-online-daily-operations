@@ -14,20 +14,23 @@
 .theme-night .task-card .mission-lockin-portal { color:var(--color-paper); border-color:var(--color-muted); }
 .task-card.has-lockin-portal:has(.mission-lockin-portal:is(:hover,:focus-visible)) { outline:2px solid var(--color-signal); outline-offset:2px; }
 /* The fifth Design section owns the focus archive and pace controls. */
- .focus-settings-panel { grid-column:1/-1; --lc-text:var(--color-ink); --lc-paper:var(--color-paper); }
+.focus-settings-panel { grid-column:1/-1; --lc-text:var(--color-ink); --lc-paper:var(--color-paper); }
 .focus-settings-panel > header { grid-template-columns:48px minmax(0,1fr) auto; }
 .focus-settings-panel > header > strong { padding:7px 10px; color:var(--color-ink); background:var(--color-signal); border:2px solid var(--color-paper); font:900 11px var(--font-ui); }
-.focus-settings-body { padding:15px; }
-.focus-settings-rule { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; padding:12px; margin-bottom:15px; color:var(--color-paper); background:var(--color-ink); border-left:8px solid var(--color-signal); }
+.focus-settings-body { display:grid; grid-template-rows:auto minmax(0,1fr); gap:11px; min-height:0; padding:15px; }
+.focus-settings-rule { display:flex; align-items:center; flex-wrap:wrap; gap:10px 18px; padding:9px 12px; color:var(--color-paper); background:var(--color-ink); border-left:8px solid var(--color-signal); }
 .focus-settings-rule > span { color:var(--color-signal); font:900 9px var(--font-ui); letter-spacing:.1em; }
 .focus-settings-rule > strong { font:700 11px/1.8 var(--font-cjk); }
 .focus-settings-rule > small { margin-left:auto; font:600 9px var(--font-cjk); color:var(--color-line); }
-.board-focus-pace { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin-bottom:18px; font:700 12px var(--font-cjk); }
-.board-focus-pace > label { display:flex; align-items:center; gap:10px; padding-right:10px; }
-.board-focus-pace input { width:76px; min-height:44px; padding:6px 10px; border:2px solid var(--lc-text); background:var(--lc-paper); color:var(--lc-text); font:900 18px var(--font-ui); }
-.board-focus-pace button { min-height:44px; padding:6px 16px; border:2px solid var(--color-ink); background:var(--color-signal); color:var(--color-ink); font:800 11px var(--font-cjk); cursor:pointer; }
-.board-focus-pace small { margin-left:auto; font-size:10px; }
+.board-focus-pace { display:flex; min-width:0; align-items:end; gap:8px; margin:0; font:1000 8px var(--font-ui); letter-spacing:.13em; }
+.board-focus-pace > label { display:flex; width:86px; flex:none; flex-direction:column; gap:6px; white-space:nowrap; }
+.board-focus-pace input { width:86px; height:42px; min-height:42px; padding:5px 8px; border:2px solid var(--lc-text); background:var(--lc-paper); color:var(--lc-text); font:900 12px var(--font-ui); }
+.board-focus-pace button { flex:none; min-height:42px; padding:6px 10px; border:2px solid var(--color-ink); background:var(--color-signal); color:var(--color-ink); font:800 10px var(--font-cjk); cursor:pointer; }
+.board-focus-pace small { align-self:flex-end; padding-bottom:3px; color:var(--color-muted); font:700 8px var(--font-cjk); letter-spacing:0; white-space:nowrap; }
+.board-focus-pace input:focus-visible,.board-focus-pace button:focus-visible { outline:3px solid var(--color-signal); outline-offset:2px; }
 .theme-night .focus-settings-panel { --lc-text:var(--night-text); --lc-paper:var(--night-surface); }
+.theme-night .board-focus-pace small { color:var(--night-muted); }
+.focus-settings-panel:has(.archive-filter.is-open) { position:relative; z-index:40; overflow:visible; }
 /* Native top-layer modal: every background application control is inert. */
 .lockin-space { position:fixed; inset:0; width:100vw; height:100dvh; max-width:none; max-height:none; margin:0; padding:0; overflow:hidden; border:0; background:var(--color-ink); color:var(--color-paper); font-family:var(--font-cjk); isolation:isolate; }
 .lockin-space::backdrop { background:var(--color-ink); }
@@ -91,8 +94,13 @@
 @keyframes study-cloud { from { transform:translateX(-15%); } to { transform:translateX(25%); } }
 @keyframes space-feedback-in { from { transform:translateY(20px) rotate(-6deg) scale(.85); opacity:0; } to { transform:translateY(0) rotate(-6deg) scale(1); opacity:1; } }
 @media(max-width:900px) { .space-mission h3 { font-size:14px; }.space-mission { width:28vw; }.space-timer { width:29vw; } }
+@media (max-width:760px) {
+  .lockin-history-tools { grid-template-columns:minmax(0,1fr) minmax(125px,.45fr); }
+  .board-focus-pace { grid-column:1/-1; }
+  .focus-settings-panel .lockin-record-scroll { flex:none; height:350px; }
+}
 @media(max-width:600px) {
-  .focus-settings-body { padding:12px; }.focus-settings-panel > header > strong { font-size:8px; padding:6px; }.focus-settings-rule > small { width:100%; margin-left:0; }.board-focus-pace > label { width:100%; justify-content:space-between; padding-right:0; }.board-focus-pace input { width:90px; }.board-focus-pace small { width:100%; margin-left:0; }
+  .focus-settings-body { padding:12px; }.focus-settings-panel > header > strong { font-size:8px; padding:6px; }.focus-settings-rule > small { width:100%; margin-left:0; }.board-focus-pace { flex-wrap:wrap; }.board-focus-pace > label { flex:1 1 86px; }.board-focus-pace button { flex:1 1 100%; }.board-focus-pace small { width:100%; margin-left:0; }
   .space-topbar { top:16px; left:5%; right:5%; gap:8px; }.space-topbar > span:first-child { font-size:8px; padding:7px 9px; }.space-topbar > span:nth-child(2) { font-size:6px; letter-spacing:0; padding:7px; }
   .space-identity { top:11%; left:5%; width:48%; }.space-kicker { font-size:6px; padding:4px; letter-spacing:.08em; }.space-identity h2 { font-size:10vw; margin:14px 0; -webkit-text-stroke:2px var(--color-ink); text-shadow:2px 3px 0 var(--color-ink),3px 4px 0 var(--color-signal); }.space-identity p { font-size:8px; padding:3px 5px; }
   .space-mission { top:11%; right:5%; width:40%; padding:9px 10px; box-shadow:3px 3px 0 var(--color-signal); }.space-mission > span { font-size:7px; letter-spacing:0; }.space-mission h3 { font-size:12px; margin:6px 0; -webkit-line-clamp:4; }.space-mission small { font-size:8px; }

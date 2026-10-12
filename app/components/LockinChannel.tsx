@@ -56,12 +56,11 @@ export function LockinSettings({ taskTitles }: { taskTitles: ReadonlyMap<string,
         <div className="focus-settings-rule"><span>SPACE RULE</span><strong>从 IN PROGRESS 的学习、证书或复习任务进入空间。</strong><small>退出即停计 · 历史照常保留</small></div>
         {error && <p className="lockin-error" role="alert">{error}<button disabled={busy} onClick={() => pending.current ? void command(pending.current.action as 'settings' | 'deleteSession') : void refresh()}>重试</button></p>}
         {!state ? <p role="status">TUNING IN…</p> : <>
-          <form className="board-focus-pace" onSubmit={(event) => { event.preventDefault(); void command('settings'); }}>
-            <label htmlFor="focus-minimum">专注时间 / 分钟<input id="focus-minimum" type="number" min="1" max="180" required disabled={busy || hasPending} value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label>
-            <label htmlFor="focus-rest">休息时间 / 分钟<input id="focus-rest" type="number" min="1" max="180" required disabled={busy || hasPending} value={rest} onChange={(event) => setRest(event.target.value)} /></label>
+          <LockinRecords sessions={state.sessions} taskTitles={taskTitles} now={Date.parse(state.serverNow)} onDelete={(session) => { if (!busy && !pending.current) setDeleteTarget(session); }} paceControls={<form className="board-focus-pace" onSubmit={(event) => { event.preventDefault(); void command('settings'); }}>
+            <label htmlFor="focus-minimum">专注 / 分钟<input id="focus-minimum" type="number" min="1" max="180" required disabled={busy || hasPending} value={minimum} onChange={(event) => setMinimum(event.target.value)} /></label>
+            <label htmlFor="focus-rest">休息 / 分钟<input id="focus-rest" type="number" min="1" max="180" required disabled={busy || hasPending} value={rest} onChange={(event) => setRest(event.target.value)} /></label>
             <button disabled={busy || hasPending}>保存节奏 ↗</button><small>下次进入空间生效</small>
-          </form>
-          <LockinRecords sessions={state.sessions} taskTitles={taskTitles} now={Date.parse(state.serverNow)} onDelete={(session) => { if (!busy && !pending.current) setDeleteTarget(session); }} />
+          </form>} />
         </>}
       </div>
     </section>
