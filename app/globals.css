@@ -313,13 +313,13 @@ button { color:inherit; }
 .sort-note { margin:13px 4px 0; font-size:9px; font-weight:800; }
 
 /* Keep the 27-inch composition; shorter desktop windows scroll instead of compressing its working areas. */
-html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhythm-map.is-standard:not(.is-expanded)) { overflow:auto; scrollbar-gutter:auto; }
-.view-table.app-shell,.view-calendar.app-shell,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) { height:100dvh; max-height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
+html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhythm-map:not(.is-expanded)) { overflow:auto; scrollbar-gutter:auto; }
+.view-table.app-shell,.view-calendar.app-shell,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) { height:100dvh; max-height:100dvh; display:flex; flex-direction:column; overflow:hidden; }
 @media (min-width:1001px) {
-  .view-table.app-shell,.view-calendar.app-shell,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) { height:max(100dvh,1200px); max-height:none; }
+  .view-table.app-shell,.view-calendar.app-shell,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) { height:max(100dvh,1200px); max-height:none; }
 }
-.view-table .app-frame,.view-calendar .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-frame { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
-.view-table .hero,.view-table .app-footer,.view-calendar .hero,.view-calendar .app-footer,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .hero,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-footer { flex-shrink:0; }
+.view-table .app-frame,.view-calendar .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .app-frame { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+.view-table .hero,.view-table .app-footer,.view-calendar .hero,.view-calendar .app-footer,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .hero,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .app-footer { flex-shrink:0; }
 .view-table .archive-page { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:auto; }
 .view-table .page-banner,.view-table .filter-deck,.view-table .sort-note { flex-shrink:0; }
 .view-table .archive-table-wrap { flex:1 1 auto; min-height:140px; max-height:none; }
@@ -329,14 +329,14 @@ html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhyth
 .view-calendar .month-grid { height:100%; max-height:100%; overflow:auto; scrollbar-width:none; }
 .view-calendar .month-grid::-webkit-scrollbar { width:0; height:0; display:none; }
 .view-calendar .weekday-row { position:sticky; top:0; z-index:2; }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-page { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-hero { flex-shrink:0; }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-workbench { flex:1 1 auto; min-height:0; align-items:stretch; grid-template-rows:minmax(0,1fr); }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-map { min-height:0; display:flex; flex-direction:column; }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-page { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-hero { flex-shrink:0; }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-workbench { flex:1 1 auto; min-height:0; align-items:stretch; grid-template-rows:minmax(0,1fr); }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-map { min-height:0; display:flex; flex-direction:column; }
 .view-sleep .sleep-rhythm-log { align-self:start; height:auto; }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-map>header,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-legend,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-axis,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-expand { flex-shrink:0; }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-expand { margin-bottom:12px; }
-.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-list { flex:1 1 auto; min-height:0; overflow:auto; }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-map>header,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-legend,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-axis,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-expand { flex-shrink:0; }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-expand { margin-bottom:12px; }
+.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-list { flex:1 1 auto; min-height:0; overflow:auto; }
 @media (max-width:1000px) {
   .view-table.app-shell { height:auto; max-height:none; display:block; overflow:visible; }
   .view-table .app-frame,.view-table .archive-page { display:block; overflow:visible; }
@@ -1022,23 +1022,69 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .sleep-rhythm-expand strong { color:var(--color-signal); font:1000 9px/1 var(--font-ui); letter-spacing:.09em; }
 .sleep-rhythm-expand:hover,.sleep-rhythm-expand:focus-visible { color:var(--ink); background:var(--color-signal); outline:3px solid var(--ink); outline-offset:2px; transform:translate(-2px,-2px); box-shadow:6px 6px 0 var(--ink); }
 .sleep-rhythm-expand:hover strong,.sleep-rhythm-expand:focus-visible strong { color:var(--ink); }
-.sleep-rhythm-map.is-compact .sleep-rhythm-list { gap:0; padding-bottom:18px; }
-.sleep-rhythm-map.is-compact { --rhythm-track-left:87px; --rhythm-track-right:22px; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-mean-layer { bottom:18px; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-row { grid-template-columns:58px minmax(180px,1fr); gap:7px; min-height:24px; padding:1px 8px; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-row:hover { transform:none; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-date { display:flex; align-items:center; gap:4px; min-height:20px; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-date span { display:inline; font-size:6px; letter-spacing:.04em; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-date strong { font-size:15px; line-height:1; letter-spacing:-.03em; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-date em { padding:2px 3px; font-size:6px; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-window,.sleep-rhythm-map.is-compact .sleep-rhythm-remove { display:none; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-track { height:15px; }
-.sleep-rhythm-map.is-compact .sleep-rhythm-block { top:2px; height:9px; }
+.sleep-rhythm-map.is-compact .sleep-rhythm-legend>span:first-child { display:none; }
+.sleep-compact-panel { position:relative; min-width:0; background:var(--paper); }
+.sleep-compact-plot { position:relative; }
+.sleep-compact-scroll { max-width:100%; overflow-x:auto; overflow-y:hidden; scrollbar-color:var(--yellow) var(--ink); scrollbar-width:auto; }
+.sleep-compact-scroll:focus-visible { outline:3px solid var(--color-blue); outline-offset:-3px; }
+.sleep-compact-scroll::-webkit-scrollbar { height:16px; }
+.sleep-compact-scroll::-webkit-scrollbar-track { background:var(--ink); border-top:3px solid var(--ink); }
+.sleep-compact-scroll::-webkit-scrollbar-thumb { min-width:54px; background:repeating-linear-gradient(-45deg,var(--yellow) 0 8px,var(--paper) 8px 11px); border:3px solid var(--ink); border-radius:0; }
+.sleep-compact-scroll::-webkit-scrollbar-thumb:hover { background:var(--yellow); }
+.sleep-compact-scroll svg { display:block; max-width:none; }
+.sleep-compact-y-axis { position:absolute; z-index:4; left:0; top:0; bottom:16px; width:42px; background:linear-gradient(to right,#f5f1dc 82%,rgba(245,241,220,0)); pointer-events:none; }
+.sleep-compact-y-axis span { position:absolute; left:6px; color:#656154; font:900 10px/1 var(--font-ui); transform:translateY(-50%); }
+.sleep-compact-field { fill:#f5f1dc; }
+.sleep-compact-gridline { stroke:rgba(17,18,15,.2); stroke-width:1; stroke-dasharray:3 6; }
+.sleep-compact-column { stroke:rgba(17,18,15,.09); stroke-width:1; }
+.sleep-compact-hover-column { fill:rgba(247,226,27,.14); stroke:var(--yellow); stroke-width:1; pointer-events:none; }
+.sleep-compact-average { stroke-width:1.5; stroke-dasharray:9 5; }
+.sleep-compact-average.sleep { stroke:var(--blue); }
+.sleep-compact-average.wake { stroke:var(--ink); }
+.sleep-compact-band { fill:rgba(47,124,224,.21); stroke:none; }
+.sleep-compact-band-excess { fill:var(--yellow); opacity:.72; }
+.sleep-compact-line { fill:none; stroke-width:4; stroke-linecap:square; stroke-linejoin:bevel; }
+.sleep-compact-line.sleep { stroke:var(--blue); }
+.sleep-compact-line.wake { stroke:var(--ink); }
+.sleep-compact-hover-markers { pointer-events:none; }
+.sleep-compact-hover-span { stroke:var(--ink); stroke-width:2; stroke-dasharray:4 3; }
+.sleep-compact-hover-ring { fill:var(--paper); stroke:var(--yellow); stroke-width:3; }
+.sleep-compact-hover-point { stroke:var(--ink); stroke-width:1.5; }
+.sleep-compact-hover-point.sleep { fill:var(--blue); }
+.sleep-compact-hover-point.wake { fill:var(--ink); }
+.sleep-compact-tooltip { position:absolute; z-index:5; min-width:180px; max-width:230px; display:grid; gap:5px; padding:9px 11px; color:var(--paper); background:var(--ink); border:2px solid var(--yellow); box-shadow:4px 4px 0 var(--ink); font:900 10px/1.3 var(--font-ui); pointer-events:none; transform:translateX(-50%); }
+.sleep-compact-tooltip strong { color:var(--yellow); font-size:11px; }
+.sleep-compact-tooltip small { color:#d8d2b6; font-size:9px; }
+.sleep-compact-footer { display:flex; justify-content:space-between; gap:8px; padding:7px 12px; color:var(--yellow); background:var(--ink); font:1000 8px/1 var(--font-ui); letter-spacing:.08em; }
+.theme-night .sleep-compact-panel { background:var(--night-surface); }
+.theme-night .sleep-compact-y-axis { background:linear-gradient(to right,#24271e 82%,rgba(36,39,30,0)); }
+.theme-night .sleep-compact-y-axis span { color:var(--night-text); }
+.theme-night .sleep-compact-field { fill:#24271e; }
+.theme-night .sleep-compact-gridline { stroke:rgba(238,234,203,.2); }
+.theme-night .sleep-compact-column { stroke:rgba(238,234,203,.09); }
+.theme-night .sleep-compact-hover-column { fill:rgba(224,202,70,.13); stroke:var(--night-gold); }
+.theme-night .sleep-compact-average.wake,.theme-night .sleep-compact-line.wake { stroke:var(--night-text); }
+.theme-night .sleep-compact-band { fill:rgba(116,168,239,.2); }
+.theme-night .sleep-compact-band-excess { fill:var(--night-gold); opacity:.7; }
+.theme-night .sleep-compact-hover-span { stroke:var(--night-text); }
+.theme-night .sleep-compact-hover-ring { fill:var(--night-surface); stroke:var(--night-gold); }
+.theme-night .sleep-compact-hover-point { stroke:#080806; }
+.theme-night .sleep-compact-hover-point.sleep { fill:#74a8ef; }
+.theme-night .sleep-compact-hover-point.wake { fill:var(--night-text); }
+.theme-night .sleep-compact-tooltip { color:var(--night-text); background:#10110d; border-color:var(--night-gold); box-shadow:4px 4px 0 #080806; }
+.theme-night .sleep-compact-tooltip strong { color:var(--night-gold); }
 .theme-night .sleep-display-switch { filter:drop-shadow(3px 3px 0 #080806); }
 .theme-night .sleep-display-switch button { color:var(--night-muted); background:var(--night-control); border-color:var(--night-line); }
 .theme-night .sleep-display-switch button.active { color:#080806; background:var(--night-gold); }
 .theme-night .sleep-display-switch button.active i { color:#080806; }
 .theme-night .sleep-display-switch button:hover,.theme-night .sleep-display-switch button:focus-visible { color:#080806; background:var(--night-text); outline-color:var(--night-gold); }
+@media (min-width:1001px) {
+  .view-sleep.app-shell:has(.sleep-rhythm-map.is-compact) .sleep-compact-panel { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map.is-compact) .sleep-compact-plot { flex:1 1 auto; min-height:0; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map.is-compact) .sleep-compact-scroll { height:100%; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map.is-compact) .sleep-compact-scroll svg { height:100%; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map.is-compact) .sleep-compact-footer { flex-shrink:0; padding-top:14px; padding-bottom:12px; }
+}
 .view-sleep.theme-night .sleep-mean-key b { background:#080806; }
 .view-sleep.theme-night .sleep-mean-key.mean-wake b { background:repeating-linear-gradient(to bottom,#080806 0 3px,transparent 3px 5px); border-color:var(--sleep-night-text); }
 .view-sleep.theme-night .sleep-rhythm-mean-layer .mean-sleep { background:var(--sleep-night-text); box-shadow:1px 0 0 rgba(8,8,6,.55); }
@@ -1058,11 +1104,7 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
   .sleep-mean-key strong { font-size:8px; }
   .sleep-rhythm-map { --rhythm-track-left:64px; --rhythm-track-right:57px; }
   .sleep-rhythm-mean-layer { bottom:16px; }
-  .sleep-rhythm-map.is-compact { --rhythm-track-left:73px; --rhythm-track-right:11px; }
-  .sleep-rhythm-map.is-compact .sleep-rhythm-mean-layer { bottom:16px; }
-  .sleep-rhythm-map.is-compact .sleep-rhythm-row { grid-template-columns:55px minmax(150px,1fr); min-height:23px; padding:1px 4px; }
-  .sleep-rhythm-map.is-compact .sleep-rhythm-date { grid-row:auto; }
-  .sleep-rhythm-map.is-compact .sleep-rhythm-date em { display:inline-block; }
+  .sleep-compact-footer { font-size:6px; }
   .sleep-rhythm-expand { width:calc(100% - 14px); margin:0 7px 16px; }
 }
 
@@ -1843,20 +1885,20 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
 .view-sleep.theme-night .sleep-rhythm-error span { color:#ff9b90; }
 .view-sleep.theme-night .sleep-rhythm-error p { color:var(--sleep-night-text); }
 @media (min-width:1001px) {
-  html:has(.view-sleep .sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) { overflow:auto; scrollbar-gutter:stable; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) { height:auto; max-height:none; display:block; overflow:visible; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-page { display:block; min-height:0; overflow:visible; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-rhythm-workbench { align-items:start; grid-template-rows:auto; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-rhythm-map { display:block; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-rhythm-list { overflow:visible; }
+  html:has(.view-sleep .sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) { overflow:auto; scrollbar-gutter:stable; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) { height:auto; max-height:none; display:block; overflow:visible; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-page { display:block; min-height:0; overflow:visible; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-rhythm-workbench { align-items:start; grid-template-rows:auto; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-rhythm-map { display:block; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)):has(.sleep-rhythm-error) .sleep-rhythm-list { overflow:visible; }
 }
 @media (max-width:1000px) {
-  html:has(.view-sleep .sleep-rhythm-map.is-standard:not(.is-expanded)) { overflow:auto; scrollbar-gutter:stable; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) { height:auto; max-height:none; display:block; overflow:visible; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-page { display:block; min-height:0; overflow:visible; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-workbench { grid-template-rows:auto; align-items:start; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-map { display:block; }
-  .view-sleep.app-shell:has(.sleep-rhythm-map.is-standard:not(.is-expanded)) .sleep-rhythm-list { overflow:visible; }
+  html:has(.view-sleep .sleep-rhythm-map:not(.is-expanded)) { overflow:auto; scrollbar-gutter:stable; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) { height:auto; max-height:none; display:block; overflow:visible; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .app-frame,.view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-page { display:block; min-height:0; overflow:visible; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-workbench { grid-template-rows:auto; align-items:start; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-map { display:block; }
+  .view-sleep.app-shell:has(.sleep-rhythm-map:not(.is-expanded)) .sleep-rhythm-list { overflow:visible; }
 }
 
 .sleep-remove-backdrop { z-index:125; background:rgba(17,18,15,.58); backdrop-filter:blur(3px); }

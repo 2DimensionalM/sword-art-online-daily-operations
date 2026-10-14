@@ -7,6 +7,7 @@ import { LockinSettings } from './components/LockinChannel';
 import { LockinSpace } from './components/LockinSpace';
 import { eligibleFocusTasks } from './lib/focus-model';
 import { BrandLockup } from './components/BrandLockup';
+import { SleepCompactBand } from './components/SleepCompactBand';
 import { LifeDashboard, type DashboardCampaignScale, type DashboardTask } from './components/LifeDashboard';
 import { loadDeadlineEvents, type DeadlineEvent } from './lib/deadline-store';
 import { belowTaskIdsAfterReorder, belowTaskIdsFromDividerIndex, orderTaskAtPendingDivider, pendingDividerBelowTaskIdsFromRaw, releasePendingDividerTask, resolvePendingDividerIndex } from './lib/pending-divider';
@@ -2602,8 +2603,8 @@ export default function Home() {
         <section className={`sleep-rhythm-map is-${sleepDisplayMode}${sleepDisplayMode === 'standard' && sleepStandardExpanded ? ' is-expanded' : ''}`} aria-label="全量睡眠时段分布" style={sleepDistributionStyle}>
           <header><div><span>ARCHIVE VIEW / 全量记录</span><h3>SLEEP DISTRIBUTION</h3></div><div className="sleep-rhythm-map-controls"><p>{sleepTimelineRecords.length} RECORDS</p><div className="sleep-display-switch" aria-label="睡眠分布显示模式"><button type="button" className={sleepDisplayMode === 'standard' ? 'active' : ''} aria-pressed={sleepDisplayMode === 'standard'} onClick={() => setSleepDisplayMode('standard')}><i>▤</i><span>STANDARD</span></button><button type="button" className={sleepDisplayMode === 'compact' ? 'active' : ''} aria-pressed={sleepDisplayMode === 'compact'} onClick={() => setSleepDisplayMode('compact')}><i>▥</i><span>COMPACT</span></button></div></div></header>
           <div className="sleep-rhythm-legend"><span><i /> SLEEP WINDOW</span><span className="sleep-mean-key mean-sleep"><b /> AVG SLEEP <strong>{formatClockMinutes(sleepDistributionAverage.sleep)}</strong></span><span className="sleep-mean-key mean-wake"><b /> AVG WAKE <strong>{formatClockMinutes(sleepDistributionAverage.wake)}</strong></span><small>FULL ARCHIVE</small></div>
-          <div className="sleep-rhythm-axis" aria-hidden="true"><strong>00</strong><span>03</span><span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span></div>
-          {sleepLoading ? <div className="sleep-rhythm-empty">LINKING LOCAL REST ARCHIVE…</div> : sleepTimelineRecords.length ? <><div className="sleep-rhythm-list"><div className="sleep-rhythm-mean-layer" aria-hidden="true"><b className="mean-sleep" /><b className="mean-wake" /></div>{displayedSleepTimelineRecords.map((record) => {
+          {sleepDisplayMode === 'standard' && <div className="sleep-rhythm-axis" aria-hidden="true"><strong>00</strong><span>03</span><span>06</span><span>09</span><span>12</span><span>15</span><span>18</span><span>21</span><span>24</span></div>}
+          {sleepLoading ? <div className="sleep-rhythm-empty">LINKING LOCAL REST ARCHIVE…</div> : sleepTimelineRecords.length ? sleepDisplayMode === 'compact' ? <SleepCompactBand records={sleepTimelineRecords} averageSleep={sleepDistributionAverage.sleep} averageWake={sleepDistributionAverage.wake} /> : <><div className="sleep-rhythm-list"><div className="sleep-rhythm-mean-layer" aria-hidden="true"><b className="mean-sleep" /><b className="mean-wake" /></div>{displayedSleepTimelineRecords.map((record) => {
             const sleepStart = new Date(record.sleepStartedAt);
             const wakeTime = new Date(record.wakeAt);
             const startedAt = sleepDayPosition(record.sleepStartedAt);
