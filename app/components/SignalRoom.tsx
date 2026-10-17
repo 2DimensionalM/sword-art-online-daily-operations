@@ -1,10 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FormEvent } from 'react';
+import { useCallback, useEffect, useId, useRef, useState, type CSSProperties, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import { createPortal } from 'react-dom';
 import { DiscardSignalDialog } from './DiscardSignalDialog';
 import { SignalDatePicker } from './SignalDatePicker';
+import { TrophyGallery } from './TrophyGallery';
+import { TrophyFocus } from './TrophyFocus';
 import { loadSignals, saveSignals, type Goal, type PersonalMessage, type SignalState } from '../lib/signal-store';
+import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 
 export function useSignals() {
   const [state, setState] = useState<SignalState>({ revision: 0, goals: [], messages: [] });
@@ -50,6 +53,8 @@ export function useSignals() {
 
 type Signals = ReturnType<typeof useSignals>;
 type Draft = { kind: 'goal' | 'message'; id: string; title: string; description: string; date: string; completedDate: string; tag: string; revision: number };
+export type SignalTaskType = { value: string; color: 'purple' | 'blue' | 'green' | 'yellow' };
+export type TrophyEntry = { goal: Goal; index: number };
 const completionShards = [
   ['-42vw', '-28vh', '-148deg', '#fff200'], ['-34vw', '24vh', '98deg', '#f7f1d5'], ['-25vw', '-38vh', '210deg', '#ff4b36'],
   ['-17vw', '34vh', '-72deg', '#2d67ff'], ['-8vw', '-43vh', '132deg', '#10110e'], ['8vw', '40vh', '-115deg', '#45b861'],
@@ -62,12 +67,82 @@ function deadline(date: string, today: string) {
   return days < 0 ? `已过期 ${-days} 天` : days === 0 ? '今天到期' : `还有 ${days} 天`;
 }
 
-export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Signals; taskTypes: string[]; onDirtyChange: (dirty: boolean) => void }) {
+function SignalTaskTypeSelect({ value, options, onChange }: { value: string; options: SignalTaskType[]; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  const root = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const optionRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const menuId = useId();
+  const uniqueOptions = [...new Map(options.filter((option) => option.value).map((option) => [option.value, option])).values()];
+  if (value && !uniqueOptions.some((option) => option.value === value)) uniqueOptions.push({ value, color: 'purple' });
+  const selectedIndex = Math.max(0, uniqueOptions.findIndex((option) => option.value === value));
+  const selected = uniqueOptions[selectedIndex];
+
+  const focusOption = (index: number) => {
+    const nextIndex = (index + uniqueOptions.length) % uniqueOptions.length;
+    optionRefs.current[nextIndex]?.focus();
+  };
+  const openMenu = (focusIndex = selectedIndex) => {
+    setOpen(true);
+    window.setTimeout(() => focusOption(focusIndex), 0);
+  };
+  const closeMenu = (restoreFocus = false) => {
+    setOpen(false);
+    if (restoreFocus) window.setTimeout(() => trigger.current?.focus(), 0);
+  };
+  const choose = (nextValue: string) => {
+    onChange(nextValue);
+    closeMenu(true);
+  };
+  const handleTriggerKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      openMenu(event.key === 'ArrowDown' ? selectedIndex : selectedIndex - 1);
+    }
+  };
+  const handleOptionKeyDown = (event: ReactKeyboardEvent<HTMLButtonElement>, index: number) => {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      focusOption(index + (event.key === 'ArrowDown' ? 1 : -1));
+    } else if (event.key === 'Home' || event.key === 'End') {
+      event.preventDefault();
+      focusOption(event.key === 'Home' ? 0 : uniqueOptions.length - 1);
+    } else if (event.key === 'Escape') {
+      event.preventDefault();
+      closeMenu(true);
+    }
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const closeOutside = (event: PointerEvent) => {
+      if (!root.current?.contains(event.target as Node)) closeMenu();
+    };
+    document.addEventListener('pointerdown', closeOutside);
+    return () => document.removeEventListener('pointerdown', closeOutside);
+  }, [open]);
+
+  return <div className={`signal-task-type-select tone-${selected.color} ${open ? 'is-open' : ''}`} ref={root}>
+    <button ref={trigger} type="button" className="signal-task-type-trigger" aria-label="任务类型" aria-haspopup="listbox" aria-controls={menuId} aria-expanded={open} onClick={() => open ? closeMenu() : openMenu()} onKeyDown={handleTriggerKeyDown}>
+      <i aria-hidden="true">◈</i><strong>{value}</strong><em aria-hidden="true">⌄</em>
+    </button>
+    {open && <div id={menuId} className="signal-task-type-menu" role="listbox" aria-label="任务类型">
+      <small>SELECT TYPE / 选择任务类型</small>
+      {uniqueOptions.map((option, index) => <button ref={(node) => { optionRefs.current[index] = node; }} type="button" role="option" aria-selected={option.value === value} className={`tone-${option.color} ${option.value === value ? 'active' : ''}`} key={option.value} onClick={() => choose(option.value)} onKeyDown={(event) => handleOptionKeyDown(event, index)}>
+        <span>{String(index + 1).padStart(2, '0')}</span><strong>{option.value}</strong><i aria-hidden="true">{option.value === value ? '◆' : '›'}</i>
+      </button>)}
+    </div>}
+  </div>;
+}
+
+export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Signals; taskTypes: SignalTaskType[]; onDirtyChange: (dirty: boolean) => void }) {
   const { state, ready, error, busy, refresh, commit } = signals;
   const [kind, setKind] = useState<'goal' | 'message'>('goal');
   const [query, setQuery] = useState('');
   const [page, setPage] = useState(0);
-  const [showCompleted, setShowCompleted] = useState(true);
+  const [room, setRoom] = useState<'library' | 'gallery'>('library');
+  const [galleryLeaving, setGalleryLeaving] = useState(false);
+  const [focusId, setFocusId] = useState('');
   const [completionFx, setCompletionFx] = useState<Goal | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -75,6 +150,8 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
   const [notice, setNotice] = useState<'saved' | 'deleted' | 'completed' | 'restored' | ''>('');
   const [pendingAction, setPendingAction] = useState<(() => void) | null>(null);
   const editor = useRef<HTMLFormElement>(null);
+  const entrance = useRef<HTMLButtonElement>(null);
+  const galleryTimer = useRef(0);
   const completionTimers = useRef<number[]>([]);
   useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
   useEffect(() => {
@@ -91,27 +168,41 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
   useEffect(() => () => completionTimers.current.forEach((timer) => window.clearTimeout(timer)), []);
   useEffect(() => {
     if (!completionFx) return;
-    const previousRootOverflow = document.documentElement.style.overflow;
-    const previousOverflow = document.body.style.overflow;
-    document.documentElement.style.overflow = 'hidden';
-    document.body.style.overflow = 'hidden';
-    return () => {
-      document.documentElement.style.overflow = previousRootOverflow;
-      document.body.style.overflow = previousOverflow;
-    };
+    lockScroll();
+    return () => unlockScroll();
   }, [completionFx]);
+  const closeGallery = useCallback(() => {
+    setFocusId('');
+    setGalleryLeaving(true);
+    window.clearTimeout(galleryTimer.current);
+    const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    galleryTimer.current = window.setTimeout(() => { setRoom('library'); setGalleryLeaving(false); entrance.current?.focus(); }, reduce ? 0 : 430);
+  }, []);
+  useEffect(() => {
+    if (room !== 'gallery') return;
+    lockScroll();
+    const closeOnEscape = (event: KeyboardEvent) => { if (event.key === 'Escape' && !focusId) closeGallery(); };
+    window.addEventListener('keydown', closeOnEscape);
+    return () => { unlockScroll(); window.removeEventListener('keydown', closeOnEscape); };
+  }, [room, focusId, closeGallery]);
+  useEffect(() => () => window.clearTimeout(galleryTimer.current), []);
   const completedCount = state.goals.filter((goal) => Boolean(goal.completedDate)).length;
   const records: Array<Goal | PersonalMessage> = kind === 'goal'
-    ? [...state.goals].sort((left, right) => Number(Boolean(left.completedDate)) - Number(Boolean(right.completedDate)) || left.date.localeCompare(right.date))
+    ? state.goals.filter((goal) => !goal.completedDate).sort((left, right) => left.date.localeCompare(right.date) || left.id.localeCompare(right.id))
     : state.messages;
   const filtered = records
-    .filter((item) => kind !== 'goal' || showCompleted || !('completedDate' in item) || !item.completedDate)
     .filter((item) => `${item.title} ${item.description} ${'taskType' in item ? item.taskType : item.mood}`.toLowerCase().includes(query.toLowerCase()));
+  const trophies: TrophyEntry[] = (() => {
+    const completed = state.goals.filter((goal) => Boolean(goal.completedDate));
+    const acquisition = new Map([...completed].sort((left, right) => left.completedDate.localeCompare(right.completedDate) || left.id.localeCompare(right.id)).map((goal, index) => [goal.id, index + 1]));
+    return [...completed].sort((left, right) => right.completedDate.localeCompare(left.completedDate)).map((goal) => ({ goal, index: acquisition.get(goal.id) ?? 0 }));
+  })();
+  const focusTrophy = trophies.find((entry) => entry.goal.id === focusId && entry.goal.completedDate);
   const maxPage = Math.max(0, Math.ceil(filtered.length / 6) - 1);
   const currentPage = Math.min(page, maxPage);
   const askLeave = (action: () => void) => { if (dirty) setPendingAction(() => action); else action(); };
   const open = (item?: Goal | PersonalMessage) => askLeave(() => {
-    setDraft({ kind, id: item?.id || crypto.randomUUID(), title: item?.title || '', description: item?.description || '', date: item?.date || (kind === 'goal' ? '' : todayKey()), completedDate: item && 'completedDate' in item ? item.completedDate : '', tag: item ? ('taskType' in item ? item.taskType : item.mood) : kind === 'goal' ? taskTypes[0] || '🧬 个人' : '🙂', revision: state.revision });
+    setDraft({ kind, id: item?.id || crypto.randomUUID(), title: item?.title || '', description: item?.description || '', date: item?.date || (kind === 'goal' ? '' : todayKey()), completedDate: item && 'completedDate' in item ? item.completedDate : '', tag: item ? ('taskType' in item ? item.taskType : item.mood) : kind === 'goal' ? taskTypes[0]?.value || '🧬 个人' : '🙂', revision: state.revision });
     setDirty(false); setDeleteId(''); setNotice('');
     window.setTimeout(() => { editor.current?.scrollIntoView({ block: 'nearest', behavior: 'auto' }); editor.current?.querySelector<HTMLInputElement>('input[name="signal-title"]')?.focus(); }, 0);
   });
@@ -161,7 +252,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
   const noticeCopy = notice ? {
     saved: { mark: '✓', title: '放送完成', detail: '首页 / 底部公告已同步', signal: 'SYNCED' },
     deleted: { mark: '×', title: '信号已删除', detail: '首页 / 底部公告已更新', signal: 'REMOVED' },
-    completed: { mark: '◆', title: '目标达成', detail: '已收进完成区，并从首页撤下', signal: 'PINNED' },
+    completed: { mark: '◆', title: '目标达成', detail: '已陈列进奖杯陈列室，并从首页撤下', signal: 'TROPHY' },
     restored: { mark: '↺', title: '目标已恢复', detail: '重新回到首页与公告频道', signal: 'ON AIR' },
   }[notice] : null;
   return <section className="signal-room" aria-label="心愿放送室">
@@ -173,12 +264,10 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     </div>}<button className="signal-primary" disabled={!ready || busy} onClick={() => open()}>＋ 新增{kind === 'goal' ? '目标' : '寄语'}</button></div></div>
     {error && <div className="signal-error" role="alert">{error} <button disabled={busy} onClick={() => void refresh()}>重新读取</button></div>}
     <div className={`signal-workspace ${draft ? 'has-editor' : ''}`}><div className="signal-library">
-      <div className="signal-library-header"><div><h3>{kind === 'goal' ? '远方坐标' : '给自己的话'}</h3><small>{kind === 'goal' ? 'LONG-RANGE OBJECTIVES' : 'LETTERS TO MYSELF'}</small></div><div className="signal-library-tools">{kind === 'goal' && completedCount > 0 && <button className="signal-completed-toggle" aria-pressed={showCompleted} onClick={() => { setShowCompleted(!showCompleted); setPage(0); }}><span aria-hidden="true">◆</span><b>已完成 {completedCount}</b><em>{showCompleted ? '隐藏' : '显示'}</em></button>}<input aria-label="搜索目标与寄语" placeholder="搜索这个频道…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} /></div></div>
-      {!ready ? <p className="signal-empty">正在接收信号…</p> : !filtered.length ? <div className="signal-empty"><b>{query ? '没有匹配的信号' : kind === 'goal' && !showCompleted && completedCount ? '进行中的目标已清空' : kind === 'goal' ? '下一站，想去哪里？' : '有些话，值得反复听见。'}</b><p>{query ? '试试其他关键词。' : kind === 'goal' && !showCompleted && completedCount ? '已完成目标仍收在图钉区，需要时可以重新显示。' : '新增第一条内容，让它陪你出现在每一天。'}</p></div> : <div className="signal-cards">{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((item, index) => {
-        const completedGoal = 'completedDate' in item && Boolean(item.completedDate);
-        return <article key={item.id} className={`signal-card ${completedGoal ? 'is-completed' : ''}`}>
-          {completedGoal && <span className="signal-goal-pin" aria-hidden="true" />}
-          <header><span>{'taskType' in item ? item.taskType : item.mood}</span><small>NO.{String(currentPage * 6 + index + 1).padStart(2, '0')}</small></header><h4 title={item.title}>{item.title}</h4><p title={item.description || undefined}>{item.description || '还没有补充描述。'}</p><footer><time dateTime={item.date}>截止 {item.date.replaceAll('-', '.')}</time>{'completedDate' in item && (item.completedDate ? <span className="signal-completed-date">✓ 完成 {item.completedDate.replaceAll('-', '.')}</span> : <span>{deadline(item.date, todayKey())}</span>)}</footer><div className="signal-card-actions"><button disabled={busy || Boolean(completionFx)} onClick={() => open(item)}>编辑 ↗</button>{'completedDate' in item && <button className="signal-completion-action" disabled={busy || Boolean(completionFx)} onClick={() => askLeave(() => { setDraft(null); setDirty(false); if (item.completedDate) void setGoalCompletion(item, false); else playGoalCompletion(item); })}>{item.completedDate ? '↺ 恢复目标' : '✓ 完成'}</button>}<button className="signal-delete-trigger" aria-expanded={deleteId === item.id} disabled={busy || Boolean(completionFx)} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); setDeleteId(item.id); }); }}>删除 ×</button></div>{deleteId === item.id && <div className="signal-delete" role="alertdialog" aria-label={`删除${'taskType' in item ? '目标' : '寄语'}「${item.title}」`}>
+      <div className="signal-library-header"><div><h3>{kind === 'goal' ? '远方坐标' : '给自己的话'}</h3><small>{kind === 'goal' ? 'LONG-RANGE OBJECTIVES' : 'LETTERS TO MYSELF'}</small></div><div className="signal-library-tools">{kind === 'goal' && <button ref={entrance} className="signal-trophy-entrance" aria-label={`进入奖杯陈列室，现有 ${completedCount} 座奖杯`} onClick={() => askLeave(() => setRoom('gallery'))}><span aria-hidden="true">★</span><span className="signal-trophy-entrance-copy"><b>奖杯陈列室</b><small>TROPHY GALLERY ↗</small></span><em>{String(completedCount).padStart(2, '0')}</em></button>}<input aria-label="搜索目标与寄语" placeholder="搜索这个频道…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} /></div></div>
+      {!ready ? <p className="signal-empty">正在接收信号…</p> : !filtered.length ? <div className="signal-empty"><b>{query ? '没有匹配的信号' : kind === 'goal' && completedCount ? '进行中的目标已清空' : kind === 'goal' ? '下一站，想去哪里？' : '有些话，值得反复听见。'}</b><p>{query ? '试试其他关键词。' : kind === 'goal' && completedCount ? '已完成的坐标已陈列在奖杯陈列室，随时可以去看看。' : '新增第一条内容，让它陪你出现在每一天。'}</p></div> : <div className="signal-cards">{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((item, index) => {
+        return <article key={item.id} className="signal-card">
+          <header><span>{'taskType' in item ? item.taskType : item.mood}</span><small>NO.{String(currentPage * 6 + index + 1).padStart(2, '0')}</small></header><h4 title={item.title}>{item.title}</h4><p title={item.description || undefined}>{item.description || '还没有补充描述。'}</p><footer><time dateTime={item.date}>截止 {item.date.replaceAll('-', '.')}</time>{'completedDate' in item && <span>{deadline(item.date, todayKey())}</span>}</footer><div className="signal-card-actions"><button disabled={busy || Boolean(completionFx)} onClick={() => open(item)}>编辑 ↗</button>{'completedDate' in item && <button className="signal-completion-action" disabled={busy || Boolean(completionFx)} onClick={() => askLeave(() => { setDraft(null); setDirty(false); playGoalCompletion(item); })}>✓ 完成</button>}<button className="signal-delete-trigger" aria-expanded={deleteId === item.id} disabled={busy || Boolean(completionFx)} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); setDeleteId(item.id); }); }}>删除 ×</button></div>{deleteId === item.id && <div className="signal-delete" role="alertdialog" aria-label={`删除${'taskType' in item ? '目标' : '寄语'}「${item.title}」`}>
             <div className="signal-delete-heading"><span aria-hidden="true">!</span><div><small>DELETE SIGNAL / 删除确认</small><strong>确定删除「{item.title}」？</strong></div></div>
             <p>{'taskType' in item ? '该目标将从心愿放送室、首页目标雷达与 ON AIR 公告中同步删除。' : '该寄语将从心愿放送室与 ON AIR 公告中同步删除。'}</p>
             <div className="signal-delete-actions"><button className="signal-delete-confirm" disabled={busy} onClick={() => void remove(item.id)}><span>01 / EXECUTE</span><strong>{busy ? '正在删除…' : '确认删除'}</strong></button><button className="signal-delete-cancel" disabled={busy} onClick={() => setDeleteId('')}><span>02 / CANCEL</span><strong>保留信号</strong></button></div>
@@ -187,7 +276,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
       })}</div>}
       {filtered.length > 6 && <nav className="signal-pagination" aria-label="内容分页"><button disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>← 上一页</button><span>{currentPage + 1} / {maxPage + 1}</span><button disabled={currentPage === maxPage} onClick={() => setPage(currentPage + 1)}>下一页 →</button></nav>}
     </div>
-    {draft && <form ref={editor} className="signal-editor" onSubmit={(event) => void save(event)}><header><small>EDIT SIGNAL / 编辑信号</small><h3>{draft.kind === 'goal' ? '设定远方坐标' : '写给此刻的自己'}</h3></header><fieldset disabled={busy}><label>标题<input name="signal-title" required maxLength={200} value={draft.title} onChange={(event) => update({ title: event.target.value })} /></label><label>{draft.kind === 'goal' ? '任务类型' : '心情'}{draft.kind === 'goal' ? <select value={draft.tag} onChange={(event) => update({ tag: event.target.value })}>{[...new Set([...taskTypes, draft.tag])].map((value) => <option key={value}>{value}</option>)}</select> : <input aria-label="心情" required maxLength={100} value={draft.tag} onChange={(event) => update({ tag: event.target.value })} placeholder="一个表情，或一句心情" />}</label><div className="signal-date-field"><span>{draft.kind === 'goal' ? '截止日期' : '寄语日期'}</span><SignalDatePicker kind={draft.kind} value={draft.date} disabled={busy} onChange={(date) => update({ date })} /></div>{draft.kind === 'goal' && <div className="signal-date-field"><span>完成日期 <small>留空表示进行中</small></span><SignalDatePicker kind="goal" value={draft.completedDate} disabled={busy} onChange={(completedDate) => update({ completedDate })} /></div>}<label>描述<textarea rows={6} maxLength={10000} value={draft.description} onChange={(event) => update({ description: event.target.value })} /></label></fieldset>
+    {draft && <form ref={editor} className="signal-editor" onSubmit={(event) => void save(event)}><header><small>EDIT SIGNAL / 编辑信号</small><h3>{draft.kind === 'goal' ? '设定远方坐标' : '写给此刻的自己'}</h3></header><fieldset disabled={busy}><label>标题<input name="signal-title" required maxLength={200} value={draft.title} onChange={(event) => update({ title: event.target.value })} /></label>{draft.kind === 'goal' ? <div className="signal-form-field"><span>任务类型</span><SignalTaskTypeSelect value={draft.tag} options={taskTypes} onChange={(tag) => update({ tag })} /></div> : <label>心情<input aria-label="心情" required maxLength={100} value={draft.tag} onChange={(event) => update({ tag: event.target.value })} placeholder="一个表情，或一句心情" /></label>}<div className="signal-date-field"><span>{draft.kind === 'goal' ? '截止日期' : '寄语日期'}</span><SignalDatePicker kind={draft.kind} value={draft.date} disabled={busy} onChange={(date) => update({ date })} /></div>{draft.kind === 'goal' && <div className="signal-date-field"><span>完成日期 <small>留空表示进行中</small></span><SignalDatePicker kind="goal" value={draft.completedDate} disabled={busy} onChange={(completedDate) => update({ completedDate })} /></div>}<label>描述<textarea rows={6} maxLength={10000} value={draft.description} onChange={(event) => update({ description: event.target.value })} /></label></fieldset>
       {(draft.revision !== state.revision) && <div className="signal-error">请核对最新列表后确认保留此草稿。<button type="button" onClick={() => setDraft({ ...draft, revision: state.revision })}>已核对，继续编辑</button></div>}
       <footer><button type="button" disabled={busy} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); }); }}>取消</button><button className="signal-primary" disabled={busy || !draft.title.trim() || !draft.tag.trim() || !draft.date || draft.revision !== state.revision}>{busy ? '正在保存…' : '保存并放送 →'}</button></footer><small>保存后，将同步到首页与底部公告。</small></form>}
     </div>
@@ -200,6 +289,8 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
       <div className="signal-completion-card"><small>TARGET / {completionFx.taskType}</small><strong>{completionFx.title}</strong><span aria-hidden="true" /></div>
       <div className="signal-completion-verdict"><small>COORDINATE SECURED</small><b>GOAL<br />COMPLETE!</b><time dateTime={todayKey()}>{todayKey().replaceAll('-', '.')}</time></div>
     </div>, document.body)}
+    {room === 'gallery' && typeof document !== 'undefined' && createPortal(<TrophyGallery trophies={trophies} taskTypes={taskTypes} busy={busy} leaving={galleryLeaving} onClose={closeGallery} onFocus={setFocusId} />, document.body)}
+    {focusTrophy && typeof document !== 'undefined' && createPortal(<TrophyFocus goal={focusTrophy.goal} tone={taskTypes.find((type) => type.value === focusTrophy.goal.taskType)?.color ?? 'purple'} index={focusTrophy.index} busy={busy} onClose={() => setFocusId('')} onRestore={() => void setGoalCompletion(focusTrophy.goal, false)} onDelete={() => void remove(focusTrophy.goal.id)} />, document.body)}
   </section>;
 }
 
@@ -208,7 +299,7 @@ export function GoalRadar({ signals, today, onOpen }: { signals: Signals; today:
   const goals = signals.state.goals.filter((goal) => !goal.completedDate);
   return <section className="goal-radar" aria-label="目标雷达">
     <header><div><small>GOAL RADAR / KEEP YOUR FUTURE IN SIGHT</small><h2>目标雷达<span>{signals.ready && !signals.error ? `${goals.length} 个进行中目标` : signals.error ? '信号中断' : '同步中'}</span></h2></div><button onClick={onOpen}>SIGNAL ROOM / 心愿放送室 ↗</button></header>
-    {signals.error ? <p role="status">目标暂时无法同步，请到放送室重试。</p> : !signals.ready ? <p>正在读取目标…</p> : !goals.length ? <p>{signals.state.goals.length ? '当前没有进行中的目标。已完成的坐标收在心愿放送室。' : '还没有设定远方坐标。为自己写下一个想抵达的目标吧。'}</p> : <div className="goal-radar-grid">{goals.slice(0, expanded ? undefined : 3).map((goal) => <article key={goal.id}><small>{goal.taskType}</small><h3>{goal.title}</h3><p>{goal.description}</p><footer><time dateTime={goal.date}>{goal.date.replaceAll('-', '.')}</time><strong>{deadline(goal.date, today)}</strong></footer></article>)}</div>}
+    {signals.error ? <p role="status">目标暂时无法同步，请到放送室重试。</p> : !signals.ready ? <p>正在读取目标…</p> : !goals.length ? <p>{signals.state.goals.length ? '当前没有进行中的目标。已完成的坐标陈列在奖杯陈列室。' : '还没有设定远方坐标。为自己写下一个想抵达的目标吧。'}</p> : <div className="goal-radar-grid">{goals.slice(0, expanded ? undefined : 3).map((goal) => <article key={goal.id}><small>{goal.taskType}</small><h3>{goal.title}</h3><p>{goal.description}</p><footer><time dateTime={goal.date}>{goal.date.replaceAll('-', '.')}</time><strong>{deadline(goal.date, today)}</strong></footer></article>)}</div>}
     {goals.length > 3 && <button className="goal-radar-expand" onClick={() => setExpanded(!expanded)}>{expanded ? '收起目标 ↑' : `查看全部 ${goals.length} 个目标 ↓`}</button>}
   </section>;
 }
