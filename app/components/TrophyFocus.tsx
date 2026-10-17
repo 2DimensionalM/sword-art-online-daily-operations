@@ -6,7 +6,7 @@ import { lockScroll, unlockScroll } from '../lib/scroll-lock';
 import type { SignalTaskType } from './SignalRoom';
 import { TrophyCup } from './TrophyGallery';
 
-export function TrophyFocus({ goal, tone, index, busy, onClose, onRestore, onDelete }: { goal: Goal; tone: SignalTaskType['color']; index: number; busy: boolean; onClose: () => void; onRestore: () => void; onDelete: () => void }) {
+export function TrophyFocus({ goal, tone, index, theme, busy, onClose, onRestore, onDelete }: { goal: Goal; tone: SignalTaskType['color']; index: number; theme: 'day' | 'night'; busy: boolean; onClose: () => void; onRestore: () => void; onDelete: () => void }) {
   const closeRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
   const [confirming, setConfirming] = useState(false);
@@ -40,21 +40,20 @@ export function TrophyFocus({ goal, tone, index, busy, onClose, onRestore, onDel
   const diffCopy = diff > 0 ? `提前 ${diff} 天达成` : diff < 0 ? `逾期 ${-diff} 天达成` : '压线达成';
 
   return <div className="signal-trophy-focus-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-    <section ref={dialogRef} className={`signal-trophy-focus tone-${tone}`} role="dialog" aria-modal="true" aria-labelledby="signal-trophy-focus-title">
+    <section ref={dialogRef} className={`signal-trophy-focus tone-${tone} ${theme === 'night' ? 'is-night' : ''}`} role="dialog" aria-modal="true" aria-labelledby="signal-trophy-focus-title">
       <button ref={closeRef} type="button" className="signal-trophy-focus-close" onClick={onClose} aria-label="关闭奖杯特写">×</button>
       <div className="signal-trophy-focus-stage" aria-hidden="true">
         <TrophyCup tone={tone} />
         <span className="signal-trophy-focus-plank" />
       </div>
       <div className="signal-trophy-focus-detail">
-        <header><span>SECURED COORDINATE / 已达成坐标</span><h2 id="signal-trophy-focus-title">{goal.title}</h2></header>
+        <header><div className="signal-trophy-focus-kicker"><span>SECURED COORDINATE / 已达成坐标</span><i className={`tone-${tone}`}>{goal.taskType}</i></div><h2 id="signal-trophy-focus-title">{goal.title}</h2></header>
         <div className="signal-trophy-focus-stats">
           <span><small>NO.</small><b>{String(index).padStart(2, '0')}</b></span>
           <span><small>达成</small><b>{goal.completedDate.replaceAll('-', '.')}</b></span>
           <span><small>原定截止</small><b>{goal.date.replaceAll('-', '.')}</b></span>
           <span className="signal-trophy-focus-delta"><small>时差</small><b>{diffCopy}</b></span>
         </div>
-        <div className="signal-trophy-focus-tag"><i className={`tone-${tone}`}>{goal.taskType}</i></div>
         <p className="signal-trophy-focus-notes">{goal.description || '没有补充描述，但奖杯本身就是证词。'}</p>
         <footer>
           {confirming && <div className="signal-trophy-confirm" role="alertdialog" aria-label={`确认移除奖杯「${goal.title}」`}>

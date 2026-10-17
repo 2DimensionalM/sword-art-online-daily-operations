@@ -2406,7 +2406,7 @@ export default function Home() {
 
 
 
-    {view === 'signals' && <SignalRoom signals={signals} taskTypes={sortedTaskTypes(settings.taskTypes)} onDirtyChange={setSignalDirty} />}
+    {view === 'signals' && <SignalRoom signals={signals} taskTypes={sortedTaskTypes(settings.taskTypes)} theme={theme} onDirtyChange={setSignalDirty} />}
 
     {view === 'dashboard' && <LifeDashboard
       username={settings.username}
