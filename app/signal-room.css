@@ -333,11 +333,13 @@
   --tr-plank-bg:var(--color-ink);
   --tr-plank-border:var(--color-ink);
   --tr-plank-shadow:rgb(17 18 15 /.28);
-  --tr-plate-bg:#161710;
-  --tr-plate-text:var(--color-paper);
-  --tr-plate-muted:#bab6a2;
+  --tr-plate-bg:var(--color-paper);
+  --tr-plate-text:var(--color-ink);
+  --tr-plate-muted:#6b695f;
   --tr-plate-border:var(--color-ink);
-  --tr-plate-shadow:rgb(17 18 15 /.3);
+  --tr-plate-shadow:var(--color-signal-deep);
+  --tr-plate-badge-bg:var(--color-ink);
+  --tr-plate-badge-text:var(--color-signal);
   --tr-empty-accent:var(--color-ink);
   --tr-faint:rgb(17 18 15 /.3);
   --tr-foot:#6b695f;
@@ -366,9 +368,12 @@
   --tr-plank-border:var(--color-signal);
   --tr-plank-shadow:rgb(247 226 27 /.22);
   --tr-plate-bg:#1b1c14;
+  --tr-plate-text:var(--color-paper);
   --tr-plate-muted:#aaa78e;
   --tr-plate-border:#4d513a;
   --tr-plate-shadow:#050504;
+  --tr-plate-badge-bg:var(--color-signal);
+  --tr-plate-badge-text:var(--color-ink);
   --tr-empty-accent:var(--color-signal);
   --tr-faint:rgb(247 226 27 /.42);
   --tr-foot:#8f8c7d;
@@ -430,7 +435,7 @@
 .signal-trophy-plank { display:block; height:12px; margin:0 -12px; background:var(--tr-plank-bg); border:2px solid var(--tr-plank-border); box-shadow:0 6px 0 var(--tr-plank-shadow); }
 .signal-trophy-plate { display:grid; gap:6px; min-height:134px; margin-top:8px; padding:10px 11px 11px; color:var(--tr-plate-text); background:var(--tr-plate-bg); border:2px solid var(--tr-plate-border); border-left:6px solid var(--trophy-tone,var(--color-signal)); box-shadow:3px 3px 0 var(--tr-plate-shadow); }
 .signal-trophy-plate-head { display:flex; align-items:center; justify-content:space-between; gap:8px; }
-.signal-trophy-plate-head small { padding:2px 6px; color:var(--color-ink); background:var(--color-signal); font:900 9px var(--font-ui); }
+.signal-trophy-plate-head small { padding:2px 6px; color:var(--tr-plate-badge-text); background:var(--tr-plate-badge-bg); font:900 9px var(--font-ui); }
 .signal-trophy-plate-head i,.signal-trophy-focus-kicker i { padding:2px 6px; color:var(--color-paper); background:var(--color-violet); font:normal 900 9px var(--font-ui); letter-spacing:.04em; }
 :is(.signal-trophy-plate-head,.signal-trophy-focus-kicker) i.tone-blue { background:var(--color-blue); }
 :is(.signal-trophy-plate-head,.signal-trophy-focus-kicker) i.tone-green { color:var(--color-ink); background:var(--color-green); }
