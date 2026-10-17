@@ -135,7 +135,7 @@ function SignalTaskTypeSelect({ value, options, onChange }: { value: string; opt
   </div>;
 }
 
-export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Signals; taskTypes: SignalTaskType[]; onDirtyChange: (dirty: boolean) => void }) {
+export function SignalRoom({ signals, taskTypes, theme, onDirtyChange }: { signals: Signals; taskTypes: SignalTaskType[]; theme: 'day' | 'night'; onDirtyChange: (dirty: boolean) => void }) {
   const { state, ready, error, busy, refresh, commit } = signals;
   const [kind, setKind] = useState<'goal' | 'message'>('goal');
   const [query, setQuery] = useState('');
@@ -176,7 +176,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     setGalleryLeaving(true);
     window.clearTimeout(galleryTimer.current);
     const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    galleryTimer.current = window.setTimeout(() => { setRoom('library'); setGalleryLeaving(false); entrance.current?.focus(); }, reduce ? 0 : 430);
+    galleryTimer.current = window.setTimeout(() => { setRoom('library'); setGalleryLeaving(false); entrance.current?.focus(); }, reduce ? 0 : 380);
   }, []);
   useEffect(() => {
     if (room !== 'gallery') return;
@@ -264,7 +264,7 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
     </div>}<button className="signal-primary" disabled={!ready || busy} onClick={() => open()}>＋ 新增{kind === 'goal' ? '目标' : '寄语'}</button></div></div>
     {error && <div className="signal-error" role="alert">{error} <button disabled={busy} onClick={() => void refresh()}>重新读取</button></div>}
     <div className={`signal-workspace ${draft ? 'has-editor' : ''}`}><div className="signal-library">
-      <div className="signal-library-header"><div><h3>{kind === 'goal' ? '远方坐标' : '给自己的话'}</h3><small>{kind === 'goal' ? 'LONG-RANGE OBJECTIVES' : 'LETTERS TO MYSELF'}</small></div><div className="signal-library-tools">{kind === 'goal' && <button ref={entrance} className="signal-trophy-entrance" aria-label={`进入奖杯陈列室，现有 ${completedCount} 座奖杯`} onClick={() => askLeave(() => setRoom('gallery'))}><span aria-hidden="true">★</span><span className="signal-trophy-entrance-copy"><b>奖杯陈列室</b><small>TROPHY GALLERY ↗</small></span><em>{String(completedCount).padStart(2, '0')}</em></button>}<input aria-label="搜索目标与寄语" placeholder="搜索这个频道…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} /></div></div>
+      <div className="signal-library-header"><div><h3>{kind === 'goal' ? '远方坐标' : '给自己的话'}</h3><small>{kind === 'goal' ? 'LONG-RANGE OBJECTIVES' : 'LETTERS TO MYSELF'}</small></div><div className="signal-library-tools">{kind === 'goal' && <button ref={entrance} className="signal-trophy-entrance" aria-label={`进入奖杯陈列室，现有 ${completedCount} 座奖杯`} onClick={() => askLeave(() => setRoom('gallery'))}><span aria-hidden="true">★</span><span className="signal-trophy-entrance-copy"><b>奖杯陈列室</b><small>TROPHY GALLERY ↗</small></span></button>}<input aria-label="搜索目标与寄语" placeholder="搜索这个频道…" value={query} onChange={(event) => { setQuery(event.target.value); setPage(0); }} /></div></div>
       {!ready ? <p className="signal-empty">正在接收信号…</p> : !filtered.length ? <div className="signal-empty"><b>{query ? '没有匹配的信号' : kind === 'goal' && completedCount ? '进行中的目标已清空' : kind === 'goal' ? '下一站，想去哪里？' : '有些话，值得反复听见。'}</b><p>{query ? '试试其他关键词。' : kind === 'goal' && completedCount ? '已完成的坐标已陈列在奖杯陈列室，随时可以去看看。' : '新增第一条内容，让它陪你出现在每一天。'}</p></div> : <div className="signal-cards">{filtered.slice(currentPage * 6, currentPage * 6 + 6).map((item, index) => {
         return <article key={item.id} className="signal-card">
           <header><span>{'taskType' in item ? item.taskType : item.mood}</span><small>NO.{String(currentPage * 6 + index + 1).padStart(2, '0')}</small></header><h4 title={item.title}>{item.title}</h4><p title={item.description || undefined}>{item.description || '还没有补充描述。'}</p><footer><time dateTime={item.date}>截止 {item.date.replaceAll('-', '.')}</time>{'completedDate' in item && <span>{deadline(item.date, todayKey())}</span>}</footer><div className="signal-card-actions"><button disabled={busy || Boolean(completionFx)} onClick={() => open(item)}>编辑 ↗</button>{'completedDate' in item && <button className="signal-completion-action" disabled={busy || Boolean(completionFx)} onClick={() => askLeave(() => { setDraft(null); setDirty(false); playGoalCompletion(item); })}>✓ 完成</button>}<button className="signal-delete-trigger" aria-expanded={deleteId === item.id} disabled={busy || Boolean(completionFx)} onClick={() => { askLeave(() => { setDraft(null); setDirty(false); setDeleteId(item.id); }); }}>删除 ×</button></div>{deleteId === item.id && <div className="signal-delete" role="alertdialog" aria-label={`删除${'taskType' in item ? '目标' : '寄语'}「${item.title}」`}>
@@ -289,8 +289,8 @@ export function SignalRoom({ signals, taskTypes, onDirtyChange }: { signals: Sig
       <div className="signal-completion-card"><small>TARGET / {completionFx.taskType}</small><strong>{completionFx.title}</strong><span aria-hidden="true" /></div>
       <div className="signal-completion-verdict"><small>COORDINATE SECURED</small><b>GOAL<br />COMPLETE!</b><time dateTime={todayKey()}>{todayKey().replaceAll('-', '.')}</time></div>
     </div>, document.body)}
-    {room === 'gallery' && typeof document !== 'undefined' && createPortal(<TrophyGallery trophies={trophies} taskTypes={taskTypes} busy={busy} leaving={galleryLeaving} onClose={closeGallery} onFocus={setFocusId} />, document.body)}
-    {focusTrophy && typeof document !== 'undefined' && createPortal(<TrophyFocus goal={focusTrophy.goal} tone={taskTypes.find((type) => type.value === focusTrophy.goal.taskType)?.color ?? 'purple'} index={focusTrophy.index} busy={busy} onClose={() => setFocusId('')} onRestore={() => void setGoalCompletion(focusTrophy.goal, false)} onDelete={() => void remove(focusTrophy.goal.id)} />, document.body)}
+    {room === 'gallery' && typeof document !== 'undefined' && createPortal(<TrophyGallery trophies={trophies} taskTypes={taskTypes} theme={theme} busy={busy} leaving={galleryLeaving} onClose={closeGallery} onFocus={setFocusId} />, document.body)}
+    {focusTrophy && typeof document !== 'undefined' && createPortal(<TrophyFocus goal={focusTrophy.goal} tone={taskTypes.find((type) => type.value === focusTrophy.goal.taskType)?.color ?? 'purple'} index={focusTrophy.index} theme={theme} busy={busy} onClose={() => setFocusId('')} onRestore={() => void setGoalCompletion(focusTrophy.goal, false)} onDelete={() => void remove(focusTrophy.goal.id)} />, document.body)}
   </section>;
 }
 

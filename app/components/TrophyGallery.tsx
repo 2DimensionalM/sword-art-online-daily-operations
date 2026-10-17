@@ -31,14 +31,12 @@ export function TrophyCup({ tone, faint }: { tone: Tone; faint?: boolean }) {
   </svg>;
 }
 
-const tilts = ['-2deg', '1deg', '-1deg', '2deg'];
-
-export function TrophyGallery({ trophies, taskTypes, busy, leaving, onClose, onFocus }: { trophies: TrophyEntry[]; taskTypes: SignalTaskType[]; busy: boolean; leaving: boolean; onClose: () => void; onFocus: (id: string) => void }) {
+export function TrophyGallery({ trophies, taskTypes, theme, busy, leaving, onClose, onFocus }: { trophies: TrophyEntry[]; taskTypes: SignalTaskType[]; theme: 'day' | 'night'; busy: boolean; leaving: boolean; onClose: () => void; onFocus: (id: string) => void }) {
   const backButton = useRef<HTMLButtonElement>(null);
   useEffect(() => { backButton.current?.focus(); }, []);
   const toneOf = (goal: Goal): Tone => taskTypes.find((type) => type.value === goal.taskType)?.color ?? 'purple';
 
-  return <section className={`signal-trophy-gallery ${leaving ? 'is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label="奖杯陈列室">
+  return <section className={`signal-trophy-gallery ${theme === 'night' ? 'is-night' : ''} ${leaving ? 'is-leaving' : ''}`} role="dialog" aria-modal="true" aria-label="奖杯陈列室">
     <header className="signal-trophy-bar">
       <div><span>05 / TROPHY GALLERY</span><h2>奖杯陈列室<em>每一座，都是一次说到做到。</em></h2></div>
       <div className="signal-trophy-station" aria-hidden="true"><b>TRO<br />PHY</b><span>SECURED COORDINATES</span><i>✦ ━━━ ✦</i></div>
@@ -47,12 +45,13 @@ export function TrophyGallery({ trophies, taskTypes, busy, leaving, onClose, onF
     {trophies.length ? <div className="signal-trophy-shelf">
       {trophies.map(({ goal, index }, order) => {
         const tone = toneOf(goal);
-        return <button key={goal.id} type="button" className="signal-trophy" disabled={busy} style={{ '--trophy-i': order, '--trophy-tilt': tilts[order % 4] } as CSSProperties} onClick={() => onFocus(goal.id)} aria-label={`查看奖杯 NO.${String(index).padStart(2, '0')} ${goal.title}`}>
+        return <button key={goal.id} type="button" className={`signal-trophy tone-${tone}`} disabled={busy} style={{ '--trophy-i': order } as CSSProperties} onClick={() => onFocus(goal.id)} aria-label={`查看奖杯 NO.${String(index).padStart(2, '0')} ${goal.title}`}>
           <span className="signal-trophy-cup"><TrophyCup tone={tone} /></span>
           <span className="signal-trophy-plank" aria-hidden="true" />
           <span className="signal-trophy-plate">
             <span className="signal-trophy-plate-head"><small>NO.{String(index).padStart(2, '0')}</small><i className={`tone-${tone}`}>{goal.taskType}</i></span>
             <strong title={goal.title}>{goal.title}</strong>
+            <span className="signal-trophy-note" title={goal.description || undefined}>{goal.description || '—'}</span>
             <span className="signal-trophy-date">✦ 达成 {goal.completedDate.replaceAll('-', '.')}</span>
           </span>
         </button>;
@@ -64,6 +63,6 @@ export function TrophyGallery({ trophies, taskTypes, busy, leaving, onClose, onF
       <small>FIRST TROPHY AWAITS</small>
       <p>完成一个目标，它就会变成奖杯，永远立在这里。</p>
     </div>}
-    <footer className="signal-trophy-foot"><span>SECURED COORDINATES</span><b>{String(trophies.length).padStart(2, '0')}</b><span>每一座奖杯都是一次说到做到</span></footer>
+    <footer className="signal-trophy-foot"><span>SECURED COORDINATES</span><span>每一座奖杯都是一次说到做到</span></footer>
   </section>;
 }
