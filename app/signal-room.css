@@ -311,24 +311,24 @@
 .signal-trophy-entrance-copy b { font-size:13px; font-weight:900; line-height:1.15; white-space:nowrap; }
 .signal-trophy-entrance-copy small { font:800 8px var(--font-ui); letter-spacing:.1em; }
 .signal-trophy-gallery {
-  --tr-room-bg:var(--color-signal);
+  --tr-room-bg:#f2ecd6;
   --tr-room-text:var(--color-ink);
-  --tr-muted:#5f5a1c;
-  --tr-watermark:rgb(17 18 15 /.07);
-  --tr-grain:rgb(17 18 15 /.045);
-  --tr-bar-bg:var(--color-ink);
-  --tr-bar-text:var(--color-paper);
-  --tr-bar-accent:var(--color-signal);
+  --tr-muted:#6b695f;
+  --tr-watermark:rgb(17 18 15 /.055);
+  --tr-grain:rgb(17 18 15 /.035);
+  --tr-bar-bg:var(--color-signal);
+  --tr-bar-text:var(--color-ink);
+  --tr-bar-accent:var(--color-ink);
   --tr-bar-border:var(--color-ink);
-  --tr-bar-shadow:var(--color-paper);
-  --tr-station-bg:var(--color-signal);
-  --tr-station-text:var(--color-ink);
-  --tr-station-shadow:var(--color-paper);
-  --tr-back-bg:var(--color-signal);
-  --tr-back-text:var(--color-ink);
+  --tr-bar-shadow:var(--color-ink);
+  --tr-station-bg:var(--color-ink);
+  --tr-station-text:var(--color-signal);
+  --tr-station-shadow:var(--color-ink);
+  --tr-back-bg:var(--color-ink);
+  --tr-back-text:var(--color-signal);
   --tr-back-border:var(--color-ink);
-  --tr-back-shadow:var(--color-paper);
-  --tr-back-hover-bg:var(--color-paper);
+  --tr-back-shadow:var(--color-ink);
+  --tr-back-hover-bg:var(--color-signal);
   --tr-back-hover-text:var(--color-ink);
   --tr-plank-bg:var(--color-ink);
   --tr-plank-border:var(--color-ink);
