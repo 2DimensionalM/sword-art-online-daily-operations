@@ -1767,7 +1767,7 @@ export default function Home() {
 
   const grouped = useMemo(() => boardMeta.reduce((result, board) => {
     const today = localDateKey(new Date());
-    const boardTasks = missionTasks.filter((task) => task.status === board.id && (board.id !== 'completed' || showCompletedHistory || (task.completedAt && localDateKey(new Date(task.completedAt)) === today)));
+    const boardTasks = missionTasks.filter((task) => task.status === board.id && (board.id !== 'completed' || showCompletedHistory || !task.completedAt || localDateKey(new Date(task.completedAt)) === today));
     result[board.id] = board.id === 'pending' ? sortPendingTasks(boardTasks, pendingSort) : sortTasks(boardTasks, board.id);
     return result;
   }, {} as Record<Status, Task[]>), [missionTasks, pendingSort, showCompletedHistory]);
@@ -2006,7 +2006,7 @@ export default function Home() {
           : saved.status === 'pending' && saved.startedAt
           ? localTimeKey(saved.startedAt)
           : saved.recurrenceStartTime || localTimeKey(saved.startedAt);
-      saved = { ...saved, status: saved.isRecurrenceTemplate ? 'pending' : saved.status, completedAt: saved.isRecurrenceTemplate ? '' : saved.completedAt, recurrence: savedRecurrence, seriesHead: saved.isRecurrenceTemplate && savedRecurrence !== 'none', recurrenceDays: savedRecurrence === 'weekly' && !saved.recurrenceDays.length ? [new Date().getDay()] : saved.recurrenceDays, recurrenceStartTime };
+      saved = { ...saved, status: saved.isRecurrenceTemplate ? 'pending' : saved.status, completedAt: saved.isRecurrenceTemplate ? '' : saved.status === 'completed' && !saved.completedAt ? new Date().toISOString() : saved.completedAt, recurrence: savedRecurrence, seriesHead: saved.isRecurrenceTemplate && savedRecurrence !== 'none', recurrenceDays: savedRecurrence === 'weekly' && !saved.recurrenceDays.length ? [new Date().getDay()] : saved.recurrenceDays, recurrenceStartTime };
       const enteringBoard = !existing || existing.status !== saved.status;
       const targetTasks = sortTasks(current.filter((task) => !task.isRecurrenceTemplate && task.status === saved.status && task.id !== saved.id), saved.status);
       const shouldInsertManually = !saved.isRecurrenceTemplate && saved.status !== 'completed' && enteringBoard && (saved.status === 'pending' || targetTasks.some((task) => task.manualOrder !== null));
@@ -2267,7 +2267,7 @@ export default function Home() {
     dueAt: task.dueAt,
     tone: typeColor(task.taskType, settings),
   }));
-  const completedToday = todayActionTasks.filter((task) => task.completedAt && localDateKey(new Date(task.completedAt)) === localDateKey(now)).length;
+  const completedToday = todayActionTasks.filter((task) => task.status === 'completed' && (!task.completedAt || localDateKey(new Date(task.completedAt)) === localDateKey(now))).length;
   const selectedDayTasks = missionTasks.filter((task) => taskOccursInActionDay(task, selectedDay, now)).sort((a, b) => +new Date(calendarTaskDate(a, now)) - +new Date(calendarTaskDate(b, now)));
   const dayScheduleBlocks = useMemo(() => layoutDaySchedule(selectedDayTasks, selectedDay, now), [selectedDayTasks, selectedDay, now]);
   const daySleepBlocks = useMemo(() => sleepWindowsInActionDay(sleepRecords, selectedDay), [sleepRecords, selectedDay]);
