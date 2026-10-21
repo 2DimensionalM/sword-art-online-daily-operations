@@ -81,6 +81,8 @@ function pieSlicePath(startRatio: number, endRatio: number) {
 }
 const FACTION_TIME_MODE_SESSION_KEY = 'sao-dashboard-faction-time-mode-v1';
 const GRACE_SESSION_KEY = 'sao-dashboard-in-time-grace-v1';
+// Temporarily hidden: the two discipline KPIs read as redundant right now.
+const SHOW_DISCIPLINE_CHECK = false;
 const TONES: DashboardTone[] = ['purple', 'blue', 'green', 'yellow'];
 const PRIORITIES: DashboardPriority[] = ['must', 'high', 'medium', 'low'];
 const TONE_META: Record<DashboardTone, { label: string; signal: string }> = {
@@ -990,19 +992,21 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
       </div>
     </section>
 
-    <div className="dashboard-section-heading"><div><span>DISCIPLINE CHECK</span></div><p>DEADLINE / VERDICT / REVISION</p></div>
-    <section className="discipline-arena" aria-label="执行质量">
-      <article className="discipline-kpi in-time-kpi">
-        <header><span>01 / FINAL DEADLINE</span><strong>IN-TIME RATE</strong><small>准时完成率</small><div className="in-time-header-tools"><div className={`grace-filter${graceMenuOpen ? ' is-open' : ''}`} ref={graceFilterRef}><button type="button" className="grace-filter-trigger" aria-haspopup="menu" aria-expanded={graceMenuOpen} onClick={() => setGraceMenuOpen((open) => !open)}><span>GRACE</span><strong>{graceLabel}</strong><i>⌄</i></button>{graceMenuOpen && <div className="grace-filter-menu" role="menu" aria-label="准时完成宽限规则"><span>DEADLINE BUFFER</span>{GRACE_OPTIONS.map((option, index) => <button key={option.value} type="button" role="menuitemradio" aria-checked={graceMinutes === option.value} className={graceMinutes === option.value ? 'active' : ''} onClick={() => { setGraceMinutes(option.value); setGraceMenuOpen(false); }}><i>{String(index + 1).padStart(2, '0')}</i><strong>{option.detail}</strong><b>{graceMinutes === option.value ? '◆' : '◇'}</b></button>)}</div>}</div></div></header>
-        <div className="kpi-snapshot is-actionable" role="button" tabIndex={0} aria-label="查看本周期准时完成率明细" onClick={() => openInTimeDrilldown(period)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openInTimeDrilldown(period); } }}><strong>{metrics.inTimeRate === null ? '--' : metrics.inTimeRate.toFixed(1)}<i>{metrics.inTimeRate === null ? '' : '%'}</i></strong><p>{metrics.inTimeCount} IN TIME / {metrics.inTimeSample} DEADLINE CLEARS</p><small className="drilldown-callout">OPEN VERDICT ▶</small></div>
-        <MetricTrend title={`IN-TIME · ${rollingWindowLabel}`} tone="yellow" values={trendMetrics.map((item) => ({ label: item.period.compactLabel, value: item.metrics.inTimeRate, period: item.period }))} onPointSelect={openInTimeDrilldown} />
-      </article>
-      <article className="discipline-kpi deadline-kpi">
-        <header><span>02 / APPROVED DEADLINE</span><strong>CHANGE RATE</strong><small>Must 截止日期变更率</small></header>
-        <div className="kpi-snapshot is-actionable" role="button" tabIndex={0} aria-label="查看本周期截止日期变更率明细" onClick={() => openDeadlineDrilldown(period)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDeadlineDrilldown(period); } }}><strong>{metrics.deadlineChangeRate === null ? '--' : metrics.deadlineChangeRate.toFixed(1)}<i>{metrics.deadlineChangeRate === null ? '' : '%'}</i></strong><p>{metrics.changedMustCount} CHANGED / {metrics.mustCount} MUST MISSIONS · {metrics.deadlineChangeCount} EVENTS</p><small className="drilldown-callout">OPEN REVISION LOG ▶</small></div>
-        <MetricTrend title={`DEADLINE CHANGE · ${rollingWindowLabel}`} tone="orange" values={trendMetrics.map((item) => ({ label: item.period.compactLabel, value: item.metrics.deadlineChangeRate, period: item.period }))} onPointSelect={openDeadlineDrilldown} />
-      </article>
-    </section>
+    {SHOW_DISCIPLINE_CHECK && <>
+      <div className="dashboard-section-heading"><div><span>DISCIPLINE CHECK</span></div><p>DEADLINE / VERDICT / REVISION</p></div>
+      <section className="discipline-arena" aria-label="执行质量">
+        <article className="discipline-kpi in-time-kpi">
+          <header><span>01 / FINAL DEADLINE</span><strong>IN-TIME RATE</strong><small>准时完成率</small><div className="in-time-header-tools"><div className={`grace-filter${graceMenuOpen ? ' is-open' : ''}`} ref={graceFilterRef}><button type="button" className="grace-filter-trigger" aria-haspopup="menu" aria-expanded={graceMenuOpen} onClick={() => setGraceMenuOpen((open) => !open)}><span>GRACE</span><strong>{graceLabel}</strong><i>⌄</i></button>{graceMenuOpen && <div className="grace-filter-menu" role="menu" aria-label="准时完成宽限规则"><span>DEADLINE BUFFER</span>{GRACE_OPTIONS.map((option, index) => <button key={option.value} type="button" role="menuitemradio" aria-checked={graceMinutes === option.value} className={graceMinutes === option.value ? 'active' : ''} onClick={() => { setGraceMinutes(option.value); setGraceMenuOpen(false); }}><i>{String(index + 1).padStart(2, '0')}</i><strong>{option.detail}</strong><b>{graceMinutes === option.value ? '◆' : '◇'}</b></button>)}</div>}</div></div></header>
+          <div className="kpi-snapshot is-actionable" role="button" tabIndex={0} aria-label="查看本周期准时完成率明细" onClick={() => openInTimeDrilldown(period)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openInTimeDrilldown(period); } }}><strong>{metrics.inTimeRate === null ? '--' : metrics.inTimeRate.toFixed(1)}<i>{metrics.inTimeRate === null ? '' : '%'}</i></strong><p>{metrics.inTimeCount} IN TIME / {metrics.inTimeSample} DEADLINE CLEARS</p><small className="drilldown-callout">OPEN VERDICT ▶</small></div>
+          <MetricTrend title={`IN-TIME · ${rollingWindowLabel}`} tone="yellow" values={trendMetrics.map((item) => ({ label: item.period.compactLabel, value: item.metrics.inTimeRate, period: item.period }))} onPointSelect={openInTimeDrilldown} />
+        </article>
+        <article className="discipline-kpi deadline-kpi">
+          <header><span>02 / APPROVED DEADLINE</span><strong>CHANGE RATE</strong><small>Must 截止日期变更率</small></header>
+          <div className="kpi-snapshot is-actionable" role="button" tabIndex={0} aria-label="查看本周期截止日期变更率明细" onClick={() => openDeadlineDrilldown(period)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); openDeadlineDrilldown(period); } }}><strong>{metrics.deadlineChangeRate === null ? '--' : metrics.deadlineChangeRate.toFixed(1)}<i>{metrics.deadlineChangeRate === null ? '' : '%'}</i></strong><p>{metrics.changedMustCount} CHANGED / {metrics.mustCount} MUST MISSIONS · {metrics.deadlineChangeCount} EVENTS</p><small className="drilldown-callout">OPEN REVISION LOG ▶</small></div>
+          <MetricTrend title={`DEADLINE CHANGE · ${rollingWindowLabel}`} tone="orange" values={trendMetrics.map((item) => ({ label: item.period.compactLabel, value: item.metrics.deadlineChangeRate, period: item.period }))} onPointSelect={openDeadlineDrilldown} />
+        </article>
+      </section>
+    </>}
 
     <div className="dashboard-section-heading"><div><span>TACTICAL ANALYSIS</span></div><p>FACTIONS / LOAD / RECOVERY</p></div>
     <div className="dashboard-story-grid">
