@@ -24,7 +24,7 @@ const RIGHT = 30;
 const TOP = 26;
 const BOTTOM = 18;
 const CHART_HEIGHT = 476;
-const STEP = 32;
+const STEP = 24;
 
 function clockMinutes(date: Date) {
   return date.getHours() * 60 + date.getMinutes();

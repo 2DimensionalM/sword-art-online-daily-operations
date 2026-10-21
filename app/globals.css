@@ -455,12 +455,7 @@ html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhyth
 /* Must-do priority */
 .task-card.priority-must { border:4px solid var(--ink); background:repeating-linear-gradient(-45deg,#fff 0 13px,#fff5a0 13px 26px); box-shadow:7px 7px 0 var(--red),11px 11px 0 var(--ink); }
 .task-card.priority-must:active { box-shadow:2px 2px 0 var(--red),4px 4px 0 var(--ink); }
-.board.is-standard .task-card.priority-must { box-shadow:5px 5px 0 var(--red),7px 7px 0 var(--ink); }
-.board.is-standard .task-card.priority-must:active { box-shadow:2px 2px 0 var(--red),4px 4px 0 var(--ink); }
-.board.is-standard .task-card.priority-must .priority-label { position:absolute; z-index:3; right:32px; top:11px; }
-.board.is-standard .task-card.priority-must .repeat-icon { position:absolute; z-index:3; right:82px; top:15px; }
-.board.is-standard .task-card.priority-must:not(.status-inProgress)>.card-meta { transform:translateY(-2px); }
-.board.is-standard .task-card.priority-must.status-inProgress>.card-meta { bottom:8px; }
+.task-card.is-cut-hidden { display:none; }
 .task-card.priority-must::before { content:'MUST'; position:absolute; z-index:2; right:-23px; top:9px; width:88px; padding:4px 0; color:white; background:var(--red); border:2px solid var(--ink); text-align:center; font-size:9px; font-weight:1000; letter-spacing:.13em; transform:rotate(39deg); }
 .task-card.priority-must .priority-label { padding:3px 6px; color:white; background:var(--red); border:2px solid var(--ink); animation:mustPulse 1.25s ease-in-out infinite; }
 .task-card.priority-must .card-stripe { background:var(--red); }.priority-chip.priority-must { color:white; background:var(--red); box-shadow:2px 2px 0 var(--ink); }
@@ -602,8 +597,6 @@ html:has(.view-table),html:has(.view-calendar),html:has(.view-sleep .sleep-rhyth
 .theme-night .board-column,.theme-night .month-grid,.theme-night .settings-panel,.theme-night .filter-deck,.theme-night .archive-table-wrap { color:var(--night-text); background:rgba(32,34,25,.96); border-color:#0a0a08; box-shadow:7px 7px 0 rgba(0,0,0,.76); }
 .theme-night .column-header,.theme-night .page-banner,.theme-night .settings-panel>header,.theme-night .archive-table th,.theme-night .weekday-row,.theme-night .day-agenda { color:var(--night-text); background:#10110d; }.theme-night .column-index,.theme-night .page-banner>span,.theme-night .settings-panel>header>span { background:var(--night-gold); }
 .theme-night .task-card { color:var(--night-text); background:var(--night-raised); border-color:#090a08; box-shadow:4px 4px 0 #090a08; }.theme-night .task-card:hover { background:#313429; box-shadow:6px 6px 0 #090a08; }.theme-night .task-card.priority-high { background:linear-gradient(98deg,var(--night-raised) 0 92%,rgba(214,100,83,.25) 92%); }.theme-night .task-card.priority-medium { background-color:var(--night-raised); background-image:linear-gradient(135deg,rgba(224,202,70,.055) 25%,transparent 25%,transparent 50%,rgba(224,202,70,.055) 50%,rgba(224,202,70,.055) 75%,transparent 75%); }.theme-night .task-card.priority-low { border-color:#4d5040; box-shadow:2px 2px 0 #080806; }.theme-night .task-card.priority-must { background:repeating-linear-gradient(-45deg,#282a20 0 13px,#33331d 13px 26px); box-shadow:7px 7px 0 #a83e36,11px 11px 0 #080806; }
-.theme-night .board.is-standard .task-card.priority-must { box-shadow:5px 5px 0 #a83e36,7px 7px 0 #080806; }
-.theme-night .board.is-standard .task-card.priority-must:active { box-shadow:2px 2px 0 #a83e36,4px 4px 0 #080806; }
 .theme-night .task-card.status-inProgress { box-shadow:4px 4px 0 #090a08,8px 8px 0 color-mix(in srgb,var(--type) 46%,transparent); }.theme-night .task-card.status-inProgress::before { background:linear-gradient(to bottom,transparent,rgba(224,202,70,.17),transparent); }.theme-night .task-card.status-completed { color:var(--night-muted); background:repeating-linear-gradient(-12deg,var(--night-raised) 0 14px,#22241c 14px 16px); }.theme-night .task-card.status-completed h3 { color:#aaa78e; }.theme-night .task-card.status-completed h3,.theme-night .task-card.status-completed .card-description { text-decoration-color:#d6d1ae; }
 .theme-night .empty-state { color:var(--night-text); background:rgba(224,202,70,.035); border-color:var(--night-line); }.theme-night .reveal-button,.theme-night .history-button { border-color:var(--night-line); }
 .theme-night .task-modal { color:var(--night-text); background:var(--night-surface); border-color:#090a08; box-shadow:12px 12px 0 #786e24; }.theme-night .modal-header { background:linear-gradient(104deg,#10110d 0 72%,var(--type) 72%); border-color:#090a08; }.theme-night .modal-body,.theme-night .modal-actions { background:var(--night-surface); }.theme-night .modal-actions { border-color:var(--night-line); }
@@ -925,6 +918,8 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .sleep-rhythm-title { position:relative; z-index:1; align-self:center; }.sleep-rhythm-title p { margin:0 0 9px; color:var(--color-signal); font:1000 9px/1.2 var(--font-ui); letter-spacing:.14em; }.sleep-rhythm-title h2 { margin:0; font:italic 1000 clamp(47px,6vw,82px)/.72 var(--font-display); letter-spacing:-.055em; }.sleep-rhythm-title h2 em { color:var(--color-signal); font-style:normal; }
 .sleep-rhythm-summary { position:relative; z-index:1; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); align-self:stretch; background:rgba(255,253,242,.08); border-left:3px solid var(--color-signal); }.sleep-rhythm-summary article { display:flex; flex-direction:column; justify-content:flex-end; min-width:0; padding:18px 15px 24px; border-right:1px solid rgba(255,253,242,.26); }.sleep-rhythm-summary article:last-child { border-right:0; }.sleep-rhythm-summary span { color:var(--color-signal); font:1000 8px/1.2 var(--font-ui); letter-spacing:.11em; }.sleep-rhythm-summary strong { margin:10px 0 7px; font:italic 1000 clamp(23px,2.5vw,36px)/.85 Georgia,serif; font-variant-numeric:tabular-nums; white-space:nowrap; }.sleep-rhythm-summary small { color:#c9c4aa; font:900 8px/1.35 var(--font-ui); letter-spacing:.06em; }
 .sleep-rhythm-workbench { display:grid; grid-template-columns:minmax(0,1fr) minmax(285px,.34fr); align-items:start; gap:18px; }
+.sleep-rhythm-workbench:has(.sleep-rhythm-map.is-compact) { grid-template-columns:minmax(0,1fr); }
+.sleep-rhythm-workbench:has(.sleep-rhythm-map.is-compact) .sleep-rhythm-log { display:none; }
 .sleep-rhythm-map { min-width:0; overflow:hidden; background:rgba(255,253,242,.96); border:4px solid var(--ink); box-shadow:var(--shadow-loud); clip-path:polygon(0 0,100% 0,99% 98%,2% 100%,0 94%); }.sleep-rhythm-map>header { display:flex; justify-content:space-between; gap:24px; padding:19px 21px 16px; color:var(--paper); background:var(--ink); border-bottom:5px solid var(--color-signal); }.sleep-rhythm-map>header span { display:block; margin-bottom:6px; color:var(--color-signal); font:1000 9px/1 var(--font-ui); letter-spacing:.13em; }.sleep-rhythm-map h3 { margin:0; font:italic 1000 28px/1 var(--font-display); letter-spacing:.015em; }.sleep-rhythm-map>header p { max-width:315px; margin:2px 0 0; color:#d8d2b6; font:700 10px/1.5 var(--font-body); text-align:right; }
 .sleep-rhythm-legend { display:flex; align-items:center; justify-content:space-between; gap:12px; padding:12px 20px 10px; color:#514f43; border-bottom:2px solid var(--ink); font:1000 9px/1 var(--font-ui); letter-spacing:.08em; }.sleep-rhythm-legend>span { display:flex; align-items:center; gap:6px; }.sleep-rhythm-legend i { display:inline-block; width:17px; height:9px; background:var(--color-blue); border:1px solid var(--ink); box-shadow:2px 2px 0 var(--ink); }.sleep-rhythm-legend b { color:var(--ink); }.sleep-rhythm-legend small { color:#737061; font:1000 8px/1 var(--font-ui); letter-spacing:.1em; }
 .sleep-rhythm-map { --rhythm-track-left:225px; --rhythm-track-right:72px; }
@@ -1108,23 +1103,8 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
   .sleep-rhythm-expand { width:calc(100% - 14px); margin:0 7px 16px; }
 }
 
-/* DAILY OPS density switch and compact mission-card system. */
+/* DAILY OPS controls and compact mission-card system. */
 .board-control-rack { position:relative; z-index:4; height:0; display:flex; align-items:flex-start; justify-content:flex-end; gap:10px; margin:0 8px 0 auto; transform:translateY(-42px) skewX(-3deg); }
-.board-density-control { position:relative; width:max-content; height:34px; min-height:34px; display:flex; align-items:flex-start; gap:0; filter:drop-shadow(3px 3px 0 var(--ink)); }
-.board-density-control button { position:relative; height:34px; min-height:30px; display:grid; grid-template-columns:16px auto; grid-template-rows:1fr 1fr; align-items:center; column-gap:5px; padding:3px 10px; color:rgba(255,255,255,.58); background:#181914; border:2px solid white; box-shadow:none; cursor:pointer; transform:skewX(3deg); transition:transform .1s var(--ease-snap),background .1s,color .1s,box-shadow .1s,filter .1s; }
-.board-density-control button:first-child { border-right-width:1px; }
-.board-density-control button + button { margin-left:-1px; border-left-width:1px; }
-.board-density-control button i { grid-row:1/3; color:rgba(247,226,27,.58); font-size:17px; font-style:normal; line-height:1; }
-.board-density-control button strong { align-self:end; font-size:8px; font-style:italic; letter-spacing:.07em; line-height:1; }
-.board-density-control button small { align-self:start; color:rgba(255,255,255,.42); font-size:7px; font-weight:900; line-height:1.2; text-align:left; }
-.board-density-control button:not([aria-pressed="true"]):hover { z-index:2; color:white; background:#292a22; }
-.board-density-control button:not([aria-pressed="true"]):hover i { color:var(--yellow); }
-.board-density-control button:not([aria-pressed="true"]):hover small { color:rgba(255,255,255,.72); }
-.board-density-control button[aria-pressed="true"] { z-index:3; color:var(--ink); background:var(--yellow); box-shadow:3px 3px 0 var(--ink),inset 0 -2px 0 var(--ink); transform:translateY(-2px) skewX(3deg); }
-.board-density-control button[aria-pressed="true"] i,.board-density-control button[aria-pressed="true"] small { color:var(--ink); }
-.board-density-control button:active { transform:translate(1px,2px) skewX(3deg); }
-.board-density-control button[aria-pressed="true"]:active { box-shadow:1px 1px 0 var(--ink),inset 0 -1px 0 var(--ink); transform:translate(1px,0) skewX(3deg); }
-.board-density-control button:focus-visible { position:relative; z-index:1; outline:3px solid var(--yellow); outline-offset:2px; }
 .daily-flow-shortcut { height:34px; min-height:30px; display:grid; grid-template-columns:18px auto; grid-template-rows:1fr 1fr; align-items:center; column-gap:5px; padding:3px 10px; color:white; background:var(--ink); border:2px solid white; box-shadow:3px 3px 0 var(--ink); cursor:pointer; transform:skewX(3deg); transition:transform .1s var(--ease-snap),background .1s,color .1s,box-shadow .1s; }
 .daily-flow-shortcut i { grid-row:1/3; display:grid; place-items:center; width:17px; height:17px; color:var(--ink); background:var(--yellow); font-size:12px; font-style:normal; line-height:1; }
 .daily-flow-shortcut strong { align-self:end; font-size:8px; font-style:italic; letter-spacing:.07em; line-height:1; }
@@ -1181,7 +1161,6 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .board.is-compact .card-countdown>button { width:22px; height:22px; border-width:2px; box-shadow:1px 1px 0 #756b00; font-size:9px; }
 .board.is-compact .deadline-seal { width:18px; height:18px; border-width:2px; }
 .board.is-compact .deadline-seal::before,.board.is-compact .deadline-seal::after { width:11px; height:2px; }
-.theme-night .board-density-control { filter:drop-shadow(3px 3px 0 #080806); }
 .theme-night .column-sort-trigger { color:#080806; background:var(--night-text); border-color:#080806; box-shadow:3px 3px 0 var(--night-gold); }
 .theme-night .column-sort-trigger span { color:#675a17; }
 .theme-night .column-sort-trigger strong,.theme-night .column-sort-trigger i { color:#080806; }
@@ -1197,14 +1176,6 @@ html::-webkit-scrollbar-thumb:hover,body::-webkit-scrollbar-thumb:hover,.game-me
 .theme-night .pending-divider > button { color:#080806; background:var(--night-gold); border-color:#080806; box-shadow:2px 2px 0 var(--night-text); }
 .theme-night .pending-divider > button:hover,.theme-night .pending-divider > button:focus-visible { color:var(--night-gold); background:#080806; outline-color:var(--night-text); }
 .theme-night .pending-divider-drop-preview { background:var(--night-gold); border-color:#080806; }
-.theme-night .board-density-control button { color:rgba(238,234,203,.56); background:var(--night-surface); border-color:var(--night-line); }
-.theme-night .board-density-control button i { color:rgba(224,202,70,.56); }
-.theme-night .board-density-control button small { color:var(--night-muted); }
-.theme-night .board-density-control button:not([aria-pressed="true"]):hover { color:var(--night-text); background:var(--night-raised); }
-.theme-night .board-density-control button:not([aria-pressed="true"]):hover small { color:var(--night-text); }
-.theme-night .board-density-control button[aria-pressed="true"] { color:#080806; background:var(--yellow); box-shadow:3px 3px 0 #080806,inset 0 -2px 0 #5f5100; }
-.theme-night .board-density-control button[aria-pressed="true"] i,.theme-night .board-density-control button[aria-pressed="true"] small { color:#080806; }
-.theme-night .board-density-control button[aria-pressed="true"]:active { box-shadow:1px 1px 0 #080806,inset 0 -1px 0 #5f5100; }
 .theme-night .daily-flow-shortcut { color:var(--night-text); background:#10110d; border-color:var(--night-line); box-shadow:3px 3px 0 #080806; }
 .theme-night .daily-flow-shortcut i { color:#080806; background:var(--yellow); }
 .theme-night .daily-flow-shortcut small { color:var(--night-muted); }

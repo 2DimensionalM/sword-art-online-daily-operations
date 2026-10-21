@@ -25,7 +25,6 @@ type TypeColor = 'purple' | 'blue' | 'green' | 'yellow';
 type CountdownUrgency = 'oneHour' | 'halfHour' | 'fifteen' | 'five' | 'finalMinute' | 'finalTen' | 'overdue';
 type CountdownKind = 'start' | 'deadline';
 type PendingSort = 'priority' | 'start' | 'deadline' | 'custom';
-type BoardDensity = 'standard' | 'compact';
 type SleepDisplayMode = 'standard' | 'compact';
 type ArchiveFilterOption = { value: string; label: string; tone?: string };
 type ScheduleVariant = 'pending-start' | 'pending-deadline' | 'pending-range' | 'in-progress' | 'completed';
@@ -96,15 +95,11 @@ const THEME_KEY = 'sao-planner-theme-v1';
 const VIEW_SESSION_KEY = 'sao-planner-active-view-v1';
 const DIALOG_SESSION_KEY = 'sao-planner-dialog-state-v1';
 const PENDING_SORT_SESSION_KEY = 'sao-planner-pending-sort-v1';
-const BOARD_DENSITY_SESSION_KEY = 'sao-planner-board-density-v1';
 const PENDING_HIDE_DROP_TARGET = '__pending-hide-drop-target__';
 const DASHBOARD_SCALE_SESSION_KEY = 'sao-dashboard-campaign-scale-v1';
 const DASHBOARD_PERIOD_SESSION_KEY = 'sao-dashboard-campaign-period-v1';
 const SLEEP_STANDARD_LIMIT = 8;
-const VISIBLE_LIMIT: Record<BoardDensity, Record<Status, number>> = {
-  standard: { pending: 5, inProgress: 5, completed: 5 },
-  compact: { pending: 9, inProgress: 9, completed: 9 },
-};
+const VISIBLE_LIMIT: Record<Status, number> = { pending: 9, inProgress: 9, completed: 9 };
 const STATUS_ORDER: Record<Status, number> = { inProgress: 0, pending: 1, completed: 2 };
 const PRIORITY_ORDER: Record<Priority, number> = { must: 0, high: 1, medium: 2, low: 3 };
 const WEEKDAYS = ['日', '一', '二', '三', '四', '五', '六'];
@@ -1284,8 +1279,8 @@ function RichTextDescription({ value, onChange }: { value: string; onChange: (va
   </div><div ref={editorRef} className="rich-description-editor" contentEditable suppressContentEditableWarning role="textbox" aria-multiline="true" data-placeholder="补充任务背景、完成标准或下一步…" onFocus={rememberSelection} onMouseDown={focusEmptyChecklistItem} onCopy={copyDescriptionText} onCut={(event) => copyDescriptionText(event, true)} onPaste={pastePlainText} onKeyDown={(event) => { continueChecklist(event); if (!event.defaultPrevented) deleteEmptyChecklistItem(event); }} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onClick={(event) => { const target = event.target; if (target instanceof HTMLInputElement && target.type === 'checkbox') { target.toggleAttribute('checked', target.checked); onChange(editorRef.current?.innerHTML ?? ''); } }} onInput={() => { rememberSelection(); onChange(editorRef.current?.innerHTML ?? ''); }} /></div>;
 }
 
-function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen, onStart, onLockin, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
-  task: Task; color: TypeColor; now: Date; dragging: boolean; landed: boolean; dividerDropEdge?: 'before' | 'after'; onOpen: () => void;
+function TaskCard({ task, color, now, dragging, landed, cutHidden, dividerDropEdge, onOpen, onStart, onLockin, onDragStart, onDragEnd, onDragOver, onDragLeave, onDrop }: {
+  task: Task; color: TypeColor; now: Date; dragging: boolean; landed: boolean; cutHidden?: boolean; dividerDropEdge?: 'before' | 'after'; onOpen: () => void;
   onStart: () => void; onLockin?: () => void;
   onDragStart: (event: React.DragEvent<HTMLElement>) => void; onDragEnd: () => void;
   onDragOver: (event: React.DragEvent<HTMLElement>) => void; onDragLeave?: (event: React.DragEvent<HTMLElement>) => void; onDrop: (event: React.DragEvent<HTMLElement>) => void;
@@ -1293,7 +1288,7 @@ function TaskCard({ task, color, now, dragging, landed, dividerDropEdge, onOpen,
   const countdowns = countdownSignals(task, now);
   const countdown = countdowns.find((signal) => signal.kind === 'start') ?? countdowns.sort(compareCountdownSignals)[0];
   const completedLate = task.status === 'completed' && Boolean(task.completedAt && task.dueAt && +new Date(task.completedAt) > +new Date(task.dueAt));
-  return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${onLockin ? 'has-lockin-portal' : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''}`}
+  return <article className={`task-card status-${task.status} type-${color} priority-${task.priority} ${countdown ? `has-countdown countdown-${countdown.kind} signal-${countdown.urgency}` : ''} ${onLockin ? 'has-lockin-portal' : ''} ${dragging ? 'is-dragging' : ''} ${landed ? 'is-landed' : ''} ${cutHidden ? 'is-cut-hidden' : ''}`}
     draggable tabIndex={0} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragOver={onDragOver} onDragLeave={onDragLeave} onDrop={onDrop} onClick={onOpen}
     onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); onOpen(); } }}>
     {dividerDropEdge && <span className={`pending-divider-drop-preview is-${dividerDropEdge}`} aria-hidden="true" />}
@@ -1425,10 +1420,6 @@ export default function Home() {
   const [pageMotion, setPageMotion] = useState<'idle' | 'exit' | 'enter'>('idle');
   const [pageDirection, setPageDirection] = useState<'forward' | 'backward'>('forward');
   const [showAll, setShowAll] = useState<Record<Status, boolean>>({ pending: false, inProgress: false, completed: false });
-  const [boardDensity, setBoardDensity] = useState<BoardDensity>(() => {
-    if (typeof window === 'undefined') return 'standard';
-    return window.sessionStorage.getItem(BOARD_DENSITY_SESSION_KEY) === 'compact' ? 'compact' : 'standard';
-  });
   const [pendingSort, setPendingSort] = useState<PendingSort>(() => {
     if (typeof window === 'undefined') return 'custom';
     const savedSort = window.sessionStorage.getItem(PENDING_SORT_SESSION_KEY);
@@ -1555,11 +1546,6 @@ export default function Home() {
     if (!viewRestored) return;
     window.sessionStorage.setItem(PENDING_SORT_SESSION_KEY, pendingSort);
   }, [pendingSort, viewRestored]);
-
-  useEffect(() => {
-    if (!viewRestored) return;
-    window.sessionStorage.setItem(BOARD_DENSITY_SESSION_KEY, boardDensity);
-  }, [boardDensity, viewRestored]);
 
   useEffect(() => {
     if (!viewRestored) return;
@@ -2429,15 +2415,11 @@ export default function Home() {
 
     {view === 'board' && <div className="board-control-rack">
       <button type="button" className="daily-flow-shortcut" onClick={() => { setSelectedDay(localDateKey(now)); setLinkedScheduleTaskId(''); setDayAgendaOpen(true); }}><i aria-hidden="true">▥</i><strong>DAILY FLOW</strong><small>今日战线</small></button>
-      <div className="board-density-control" role="group" aria-label="任务卡片显示方式">
-        <button type="button" aria-pressed={boardDensity === 'standard'} onClick={() => { setBoardDensity('standard'); setShowAll({ pending: false, inProgress: false, completed: false }); }}><i aria-hidden="true">▦</i><strong>STANDARD</strong><small>标准</small></button>
-        <button type="button" aria-pressed={boardDensity === 'compact'} onClick={() => { setBoardDensity('compact'); setShowAll({ pending: false, inProgress: false, completed: false }); }}><i aria-hidden="true">≡</i><strong>COMPACT</strong><small>缩略</small></button>
-      </div>
     </div>}
 
     {view === 'board' && visibleCountdowns.length > 0 && <section className={`countdown-hud-stack ${visibleCountdowns.length === 1 ? 'is-single' : ''}`} aria-label="当前任务倒计时">{visibleCountdowns.map((signal) => <article key={`${signal.task.id}-${signal.kind}`} className={`countdown-alert countdown-${signal.kind} urgency-${signal.urgency}`}><span><b>{signal.kind === 'start' ? '▶ START' : '⊘ TABOO'}</b><small>{countdownSignalLabel(signal)}</small></span><div><strong>{signal.task.title}</strong><small>{formatTime(signal.targetAt, false)} · {signal.kind === 'start' ? 'MOVE TO IN PROGRESS' : 'DEADLINE LOCK'}</small></div><time>{countdownText(signal.targetAt, now)}</time><button type="button" onClick={() => signal.kind === 'start' ? moveTask(signal.task.id, 'inProgress') : setDraft(signal.task)}>{signal.kind === 'start' ? '▶ START' : 'OPEN ›'}</button></article>)}{activeCountdowns.length > visibleCountdowns.length && <div className="countdown-overflow">＋{activeCountdowns.length - visibleCountdowns.length} MORE SIGNALS / 更多倒计时</div>}</section>}
 
-    {view === 'board' && <section className={`board is-${boardDensity}`} aria-label={`${boardDensity === 'compact' ? '缩略' : '标准'}任务看板`}>{boardMeta.map((board) => {
+    {view === 'board' && <section className="board is-compact" aria-label="任务看板">{boardMeta.map((board) => {
       const boardTasks = grouped[board.id];
       const pendingCustomMode = board.id === 'pending' && pendingSort === 'custom';
       const hasPendingDivider = pendingCustomMode && pendingDividerIndex !== null;
@@ -2447,8 +2429,8 @@ export default function Home() {
       const canHideDraggedPending = Boolean(hasPendingDivider && dividerCollapsed && draggedTask?.status === 'pending' && !settings.pendingDividerBelowTaskIds?.includes(draggingId));
       const pendingHideDropActive = canHideDraggedPending && pendingDividerCatch?.taskId === PENDING_HIDE_DROP_TARGET && pendingDividerCatch.side === 'below';
       const visible = hasPendingDivider
-        ? dividerCollapsed && !draggingPendingDivider ? boardTasks.slice(0, dividerIndex ?? 0) : boardTasks
-        : showAll[board.id] ? boardTasks : boardTasks.slice(0, VISIBLE_LIMIT[boardDensity][board.id]);
+        ? boardTasks
+        : showAll[board.id] ? boardTasks : boardTasks.slice(0, VISIBLE_LIMIT[board.id]);
       const hiddenCount = hasPendingDivider ? boardTasks.length - (dividerIndex ?? 0) : boardTasks.length - visible.length;
       const pendingDivider = hasPendingDivider ? <PendingDivider collapsed={dividerCollapsed} hiddenCount={hiddenCount} draggingTask={Boolean(draggingId)} dragging={draggingPendingDivider} hintedSide={pendingDividerCatch?.side ?? null}
         onDelete={removePendingDivider}
@@ -2498,6 +2480,7 @@ export default function Home() {
         <div className={`task-stack ${pendingCustomMode ? 'has-pending-divider-affordance' : ''}`}>{visible.map((task, taskIndex) => <Fragment key={task.id}>
           {hasPendingDivider && dividerIndex === taskIndex && pendingDivider}
           <TaskCard task={task} color={typeColor(task.taskType, settings)} now={now} dragging={draggingId === task.id} landed={landedId === task.id}
+            cutHidden={Boolean(hasPendingDivider && dividerCollapsed && !draggingPendingDivider && taskIndex >= (dividerIndex ?? 0))}
             dividerDropEdge={draggingPendingDivider && board.id === 'pending'
               ? pendingDividerDropIndex === taskIndex ? 'before'
                 : taskIndex === visible.length - 1 && pendingDividerDropIndex === visible.length ? 'after'
