@@ -186,7 +186,7 @@ const insertDeadlineEvent = db.prepare(`
   VALUES (?, ?, ?, ?, ?)
 `);
 const readTaskDeletionEvents = db.prepare(`
-  SELECT id, task_id, deleted_at, title, task_type, status, started_at, completed_at, due_at, priority
+  SELECT id, task_id, deleted_at, title, task_type, status, started_at, completed_at, due_at, priority, payload_json
   FROM task_deletion_events
   ORDER BY deleted_at DESC, id DESC
 `);
@@ -394,6 +394,15 @@ function getDeadlineEvents() {
   }));
 }
 
+function readDeletionSnapshot(payloadJson) {
+  try {
+    const snapshot = JSON.parse(payloadJson);
+    return snapshot && typeof snapshot === 'object' ? snapshot : null;
+  } catch {
+    return null;
+  }
+}
+
 function getTaskDeletionEvents() {
   return readTaskDeletionEvents.all().map((event) => ({
     id: Number(event.id),
@@ -406,6 +415,7 @@ function getTaskDeletionEvents() {
     completedAt: event.completed_at,
     dueAt: event.due_at,
     priority: event.priority,
+    snapshot: readDeletionSnapshot(event.payload_json),
   }));
 }
 

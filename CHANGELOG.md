@@ -7,6 +7,7 @@ All notable project changes will be documented in this file.
 ### Added
 
 - Life Command dashboard, sleep records, and task audit events
+- Restorable task snapshots in the DESIGN cancellation log
 - Signal Room goals, personal messages, and completed-goal trophy gallery
 - Task-linked Lockin focus space with rest controls, history, and simulated weather
 - Task-based Pending divider with persisted collapse state

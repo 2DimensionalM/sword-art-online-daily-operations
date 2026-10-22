@@ -873,7 +873,7 @@ function CancellationRemovalDialog({ event, busy, onCancel, onConfirm }: {
       <header><span>DATABASE WARNING / 04</span><strong id="cancellation-confirm-title">REMOVE CANCELLATION LOG?</strong><button type="button" className="selector-close-button" aria-label="取消删除" disabled={busy} onClick={onCancel}>×</button></header>
       <div className="cancellation-confirm-body">
         <div className="cancellation-confirm-signal" aria-hidden="true"><span>!</span><strong>NO<br />UNDO</strong></div>
-        <div className="cancellation-confirm-copy"><span>FINAL CHECK / 最终确认</span><h3>{event.title}</h3><p id="cancellation-confirm-description">这会从本地 SQLite 中永久删除该条取消留痕，并改变首页的取消统计。原任务不会恢复。</p><dl><div><dt>TYPE</dt><dd>{event.taskType}</dd></div><div><dt>STATUS</dt><dd>{statusLabel(event.status)}</dd></div><div><dt>DELETED</dt><dd>{formatTime(event.deletedAt)}</dd></div></dl></div>
+        <div className="cancellation-confirm-copy"><span>FINAL CHECK / 最终确认</span><h3>{event.title}</h3><p id="cancellation-confirm-description">这会从本地 SQLite 中永久删除该条取消留痕，并改变首页的取消统计。此操作不会恢复原任务；如需找回，请先在留痕列表点击复原。</p><dl><div><dt>TYPE</dt><dd>{event.taskType}</dd></div><div><dt>STATUS</dt><dd>{statusLabel(event.status)}</dd></div><div><dt>DELETED</dt><dd>{formatTime(event.deletedAt)}</dd></div></dl></div>
       </div>
       <footer><button type="button" className="cancellation-confirm-cancel" disabled={busy} onClick={onCancel}>KEEP LOG / 保留留痕</button><button type="button" className="cancellation-confirm-remove" disabled={busy} onClick={onConfirm} autoFocus>{busy ? 'REMOVING…' : 'REMOVE FOREVER / 永久删除'}</button></footer>
     </section>
@@ -1480,6 +1480,7 @@ export default function Home() {
   const [cancellationLogDay, setCancellationLogDay] = useState('');
   const [cancellationRemovalTarget, setCancellationRemovalTarget] = useState<TaskDeletionEvent | null>(null);
   const [cancellationRemovalBusy, setCancellationRemovalBusy] = useState(false);
+  const [cancellationRestoreBusyId, setCancellationRestoreBusyId] = useState<number | null>(null);
   const [repeaterDraggingId, setRepeaterDraggingId] = useState('');
   const missionTasks = useMemo(() => tasks.filter((task) => !task.isRecurrenceTemplate), [tasks]);
   const taskTitles = useMemo(() => new Map(missionTasks.map((task) => [task.id, task.title])), [missionTasks]);
@@ -2051,6 +2052,58 @@ export default function Home() {
       setToast(error instanceof Error ? error.message : '取消留痕移除失败');
     } finally {
       setCancellationRemovalBusy(false);
+    }
+  };
+  const restoreCancellationEvent = async (event: TaskDeletionEvent) => {
+    if (cancellationRestoreBusyId !== null) return;
+    const snapshot = event.snapshot;
+    if (!snapshot?.id) {
+      setToast('该留痕缺少可复原的任务快照');
+      return;
+    }
+    setCancellationRestoreBusyId(event.id);
+    try {
+      if (tasks.some((task) => task.id === snapshot.id)) {
+        setTaskDeletionEvents(await removeTaskDeletionEvent(event.id));
+        setToast('任务已在看板中，取消留痕已清理');
+        return;
+      }
+      const restored = normalizeTasks([snapshot])[0];
+      const nextTasks = [...tasks, restored];
+      const nextSnapshot = JSON.stringify({ tasks: nextTasks, settings, theme });
+      setTasks(nextTasks);
+      const restore = saveQueue.current.catch(() => undefined).then(async () => {
+        const result = await savePlannerState<Task, PlannerSettings>({
+          expectedRevision: databaseRevision.current,
+          tasks: nextTasks,
+          settings,
+          theme,
+        });
+        databaseRevision.current = result.state.revision;
+        if (result.conflicted) {
+          const currentTasks = normalizeTasks(result.state.tasks);
+          const currentSettings = normalizeSettings(result.state.settings, currentTasks);
+          lastPersistedSnapshot.current = JSON.stringify({ tasks: currentTasks, settings: currentSettings, theme: result.state.theme });
+          setTasks(currentTasks);
+          setSettings(currentSettings);
+          setTheme(result.state.theme);
+          return null;
+        }
+        lastPersistedSnapshot.current = nextSnapshot;
+        return removeTaskDeletionEvent(event.id);
+      });
+      saveQueue.current = restore.then(() => undefined, () => undefined);
+      const remainingEvents = await restore;
+      if (remainingEvents === null) {
+        setToast('DATABASE UPDATED · 复原未完成，请重试');
+        return;
+      }
+      setTaskDeletionEvents(remainingEvents);
+      setToast(`「${restored.title || '任务'}」已复原 · ${statusLabel(restored.status)}`);
+    } catch (error) {
+      setToast(error instanceof Error ? error.message : '任务复原失败');
+    } finally {
+      setCancellationRestoreBusyId(null);
     }
   };
 
@@ -2650,9 +2703,9 @@ export default function Home() {
           </div>
         </section>
         <section className="settings-panel cancellation-log-panel">
-          <header><span>04</span><div><h3>CANCELLATION LOG</h3><p>首页取消统计的数据来源与手动清理入口</p></div><strong>{matchingCancellationEvents.length} / {taskDeletionEvents.length} EVENTS</strong></header>
+          <header><span>04</span><div><h3>CANCELLATION LOG</h3><p>首页取消统计的数据来源、任务复原与手动清理入口</p></div><strong>{matchingCancellationEvents.length} / {taskDeletionEvents.length} EVENTS</strong></header>
           <div className="cancellation-log-body">
-            <div className="cancellation-log-rule"><span>AUDIT RULE</span><strong>删除普通任务或循环实例时记录；删除循环模板不计入取消。</strong><small>移除留痕只影响统计，不会恢复原任务。</small></div>
+            <div className="cancellation-log-rule"><span>AUDIT RULE</span><strong>删除普通任务或循环实例时记录；删除循环模板不计入取消。</strong><small>点击 ↺ 可复原任务；移除留痕只影响统计。</small></div>
             <div className="cancellation-filter-deck">
               <label className="cancellation-search-filter"><span>SEARCH LOG / 搜索留痕</span><div className="cancellation-search-control"><i aria-hidden="true">⌕</i><input value={cancellationLogQuery} onChange={(event) => setCancellationLogQuery(event.target.value)} placeholder="任务名、类型、状态或日期…" /><em aria-hidden="true">TYPE</em></div></label>
               <ArchiveFilterMenu label="STATUS" mark="◈" value={cancellationLogStatus} onChange={(value) => setCancellationLogStatus(value as Status | 'all')} options={[{ value: 'all', label: '全部状态 / ALL' }, { value: 'inProgress', label: 'IN PROGRESS / 进行中', tone: 'inProgress' }, { value: 'pending', label: 'PENDING / 待处理', tone: 'pending' }, { value: 'completed', label: 'COMPLETED / 已完成', tone: 'completed' }]} />
@@ -2667,7 +2720,8 @@ export default function Home() {
                   <span>{String(index + 1).padStart(2, '0')}</span>
                   <div><strong>{event.title}</strong><small>{event.taskType} · {statusLabel(event.status)} · 原任务 {missionMoment ? formatTime(missionMoment) : '无日期'}</small></div>
                   <time>{formatTime(event.deletedAt)}<small>DELETED</small></time>
-                  <button type="button" onClick={() => setCancellationRemovalTarget(event)} aria-label={`移除 ${event.title} 的取消留痕`}>×<span>REMOVE</span></button>
+                  <button type="button" className="cancellation-restore" disabled={cancellationRestoreBusyId !== null} onClick={() => void restoreCancellationEvent(event)} aria-label={`复原任务 ${event.title}`}>{cancellationRestoreBusyId === event.id ? '…' : '↺'}<span>{cancellationRestoreBusyId === event.id ? 'RESTORING' : 'RESTORE'}</span></button>
+                  <button type="button" className="cancellation-remove" disabled={cancellationRestoreBusyId !== null} onClick={() => setCancellationRemovalTarget(event)} aria-label={`移除 ${event.title} 的取消留痕`}>×<span>REMOVE</span></button>
                 </article>;
               })}</div> : <div className="cancellation-log-empty"><strong>{taskDeletionEvents.length ? 'NO MATCHING SIGNALS' : 'NO CANCELLATION EVENTS'}</strong><span>{taskDeletionEvents.length ? '当前筛选条件下没有取消留痕，请调整搜索或筛选。' : '删除任务后，取消留痕会出现在这里。'}</span></div>}
             </div>

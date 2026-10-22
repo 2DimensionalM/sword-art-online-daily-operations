@@ -1,5 +1,27 @@
 const TASK_DELETIONS_URL = 'http://127.0.0.1:43110/v1/task-deletions';
 
+export type TaskDeletionSnapshot = {
+  id: string;
+  index?: number;
+  title?: string;
+  description?: string;
+  status: TaskDeletionEvent['status'];
+  taskType?: string;
+  startedAt?: string;
+  completedAt?: string;
+  dueAt?: string;
+  priority: TaskDeletionEvent['priority'];
+  location?: string;
+  recurrence?: 'none' | 'daily' | 'weekdays' | 'weekly';
+  recurrenceDays?: number[];
+  recurrenceStartTime?: string;
+  isRecurrenceTemplate?: boolean;
+  seriesId?: string;
+  seriesHead?: boolean;
+  lastGeneratedDate?: string;
+  manualOrder?: number | null;
+};
+
 export type TaskDeletionEvent = {
   id: number;
   taskId: string;
@@ -11,6 +33,7 @@ export type TaskDeletionEvent = {
   completedAt: string;
   dueAt: string;
   priority: 'must' | 'high' | 'medium' | 'low';
+  snapshot: TaskDeletionSnapshot | null;
 };
 
 export async function loadTaskDeletionEvents() {
