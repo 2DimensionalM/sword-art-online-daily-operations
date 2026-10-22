@@ -1,0 +1,17 @@
+name: Feature request
+description: Suggest an improvement to the planner.
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem would this solve?
+      description: Describe a concrete workflow or limitation.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Describe the desired result and any alternatives you considered.
+    validations:
+      required: true

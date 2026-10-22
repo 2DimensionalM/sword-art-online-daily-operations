@@ -6,6 +6,13 @@ All notable project changes will be documented in this file.
 
 ### Added
 
+- Life Command dashboard, sleep records, and task audit events
+- Signal Room goals, personal messages, and completed-goal trophy gallery
+- Task-linked Lockin focus space with rest controls, history, and simulated weather
+- Task-based Pending divider with persisted collapse state
+- English and Chinese project guides, synthetic-data previews, and architecture documentation
+- Unified test command and CI checks on Node.js 22.13 and 24
+
 - Local SQLite source of truth with transactional state writes
 - One-time browser-storage migration and immutable migration backup
 - Database backup and legacy recovery utilities

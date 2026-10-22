@@ -40,7 +40,7 @@ On the first database-backed load on a new local origin:
 4. Only after the database confirms the transaction does the client remove the old `localStorage` keys.
 5. Every later load reads SQLite only, regardless of browser or frontend port.
 
-The historical import in this workspace came from `http://localhost:3001`. After initialization, changing the frontend port does not change application data because every origin reads the same SQLite API. Abandoned browser storage such as `http://localhost:3000` is never read and cannot overwrite SQLite.
+For example, legacy data may have been stored at `http://localhost:3001`. After initialization, changing the frontend port does not change application data because every origin reads the same SQLite API. Abandoned browser storage such as `http://localhost:3000` is never read and cannot overwrite SQLite.
 
 ## Operations
 
@@ -75,9 +75,9 @@ Dashboard code should consume the local API or a future repository/service layer
 
 The Signal Room is the only editor. Completing a goal records its completion date; restoring it clears that date. Completed goals sort after active goals and can be hidden in the room. The homepage goal radar and the goal portion of the fixed broadcast ticker only derive active goals from the same loaded state. Ticker visibility is a session-only UI preference in `sessionStorage`; neither goals nor messages use browser storage. Hover/focus and an explicit pause control stop the ticker, and reduced-motion users get a manually scrollable static feed.
 
-The initial 22 messages were transcribed from the user-provided Notion screenshot, imported explicitly into this local database, and recorded under `notion-personal-messages-screenshot-2026-09-18` in `migration_backups`. Personal content and the import source remain in ignored `recovery/`; application startup never seeds them. No screenshot goals were imported. A consistent backup was taken before the migration. Code checkout alone does not ship personal messages to other installations.
+Personal message imports are explicit local operations and retain their audit records in `migration_backups`. Import sources and personal content belong in ignored `recovery/`; application startup never seeds them. A code checkout does not include personal messages from another installation.
 
-Run `node --test scripts/test-signals.mjs` to validate against an isolated temporary database and OS-assigned loopback port, including restart persistence, validation, conflict rejection, deleted-entry persistence and planner/migration-audit preservation.
+Run `node --experimental-strip-types --test scripts/test-signals.mjs` to validate against an isolated temporary database and OS-assigned loopback port, including restart persistence, validation, conflict rejection, deleted-entry persistence and planner/migration-audit preservation.
 
 ## LOCKIN CHANNEL / 专注频道
 
@@ -93,6 +93,6 @@ The legacy start/resume/break contract remains readable and supported for compat
 
 Time measures elapsed wall-clock time, including self-reported distractions. The minimum is a gentle milestone without forced interruption. The space offers a manual break that freezes focus duration and counts down the captured rest setting; it never forces an automatic restart. Continuing closes the previous interval and starts a new one for the same task and owning space. “结束本轮” uses the existing finish command to save/stop the interval while keeping the planner inert; “再开一轮” creates a new session under the same space token. Explicit exit remains a separate stop-and-return action. Historical records retain task snapshots, durations, and distraction timestamps even after task deletion. The archive, search, date filters and independent focus/rest minute settings render directly in the FIND YOUR FLOW section at the bottom of DESIGN; both settings save atomically through the existing settings command and are captured for the next session. Only record removal has a confirmation dialog. Daily Ops contains only mission-card entries. The Today/seven-day dashboard UI has been removed; no focus metric is added to the homepage. No browser storage is used for focus data.
 
-Run `node --test scripts/test-focus.mjs` for isolated API/restart/conflict/idempotency/data-preservation checks, exact eligibility, task-status reconciliation, scoped presence, revision-independent exits, cancelled starts, background suspension/API-outage recovery, deliberate abandoned-space replacement and historical deletion.
+Run `node --experimental-strip-types --test scripts/test-focus.mjs` for isolated API/restart/conflict/idempotency/data-preservation checks, exact eligibility, task-status reconciliation, scoped presence, revision-independent exits, cancelled starts, background suspension/API-outage recovery, deliberate abandoned-space replacement and historical deletion.
 
 The room's day/night illustration uses browser-local computer hours (07:00–18:59 day), independent of server-clock correction for session durations and independent of app theme. Weather is manually selected from clear/cloudy/overcast/drizzle/storm/snow/blizzard, starting clear per entry; it is simulated. These transient presentation values do not enter SQLite or browser storage, require no location access and do not alter historical focus records.

@@ -19,7 +19,8 @@
     "design:check": "node scripts/check-design-harness.mjs",
     "lint": "npm run design:check && eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit",
-    "check": "npm run lint && npm run typecheck && npm run build"
+    "check": "npm run lint && npm run typecheck && npm test && npm run build",
+    "test": "node --experimental-strip-types --test scripts/test-*.mjs"
   },
   "dependencies": {
     "next": "16.2.6",

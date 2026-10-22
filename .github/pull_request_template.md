@@ -1,14 +1,14 @@
-## Outcome
+## Change
 
-Describe the user-visible result.
+Describe the problem and the resulting behavior. Link a related issue if applicable.
 
 ## Data impact
 
-- [ ] No database schema or migration impact
-- [ ] Database changes include a reviewed migration and backup plan
+Describe schema, migration, or persistence changes, or write “None”. For schema changes, include the migration and backup plan.
 
 ## Validation
 
-- [ ] `npm run check`
-- [ ] Relevant desktop and mobile interactions
-- [ ] No personal database, recovery export, or private moodboard asset is included
+- [ ] `npm run check` (design harness, lint, typecheck, tests, build)
+- [ ] Affected desktop and narrow/mobile flows checked, if applicable
+- [ ] Screenshots use fictional data, if included
+- [ ] No personal database, backup, recovery export, or private reference asset included
