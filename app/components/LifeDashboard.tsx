@@ -80,6 +80,7 @@ function pieSlicePath(startRatio: number, endRatio: number) {
   return `M 120 120 L ${start.x} ${start.y} A ${PIE_RADIUS} ${PIE_RADIUS} 0 ${largeArc} 1 ${end.x} ${end.y} Z`;
 }
 const FACTION_TIME_MODE_SESSION_KEY = 'sao-dashboard-faction-time-mode-v1';
+const ALLOCATION_DIMENSION_SESSION_KEY = 'sao-dashboard-allocation-dimension-v1';
 const GRACE_SESSION_KEY = 'sao-dashboard-in-time-grace-v1';
 // Temporarily hidden: the two discipline KPIs read as redundant right now.
 const SHOW_DISCIPLINE_CHECK = false;
@@ -521,7 +522,10 @@ function MetricTrend({ title, values, tone, onPointSelect }: { title: string; va
 export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, deadlineEvents, taskDeletionEvents, campaignScale: scale, selectedPeriodId, onCampaignWindowChange, onNavigate, onOpenCalendarDay, onOpenCancellationLog }: LifeDashboardProps) {
   const [typeRankMode, setTypeRankMode] = useState<TypeRankMode>('total');
   const [loadMode, setLoadMode] = useState<LoadMode>('factions');
-  const [allocationDimension, setAllocationDimension] = useState<AllocationDimension>('tone');
+  const [allocationDimension, setAllocationDimension] = useState<AllocationDimension>(() => {
+    if (typeof window === 'undefined') return 'tone';
+    return window.sessionStorage.getItem(ALLOCATION_DIMENSION_SESSION_KEY) === 'type' ? 'type' : 'tone';
+  });
   const [factionTimeMode, setFactionTimeMode] = useState<FactionTimeMode>(() => {
     if (typeof window === 'undefined') return 'merged';
     return window.sessionStorage.getItem(FACTION_TIME_MODE_SESSION_KEY) === 'stacked' ? 'stacked' : 'merged';
@@ -564,7 +568,10 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
   const mergedFactionMinutes = useMemo(() => TONES.reduce((values, tone) => ({ ...values, [tone]: mergedToneMinutes(tasks, tone, period, now) }), {} as Record<DashboardTone, number>), [now, period, tasks]);
   const mergedTypeTime = useMemo(() => metrics.types.reduce((values, type) => ({ ...values, [type.label]: mergedTypeMinutes(tasks, type.label, period, now) }), {} as Record<string, number>), [metrics.types, now, period, tasks]);
   const colorSegments = metrics.tones.map((tone) => ({ id: tone.tone, label: TONE_META[tone.tone].label, value: factionTimeMode === 'merged' ? mergedFactionMinutes[tone.tone] : tone.minutes, color: `var(--dashboard-${tone.tone})` }));
-  const typeSegments = metrics.types.map((type, index) => ({ id: type.label, label: type.label, value: factionTimeMode === 'merged' ? mergedTypeTime[type.label] : type.minutes, color: `color-mix(in srgb,var(--dashboard-${type.tone}) ${58 + index % 4 * 10}%,${index % 2 ? 'var(--color-paper)' : 'var(--color-ink)'})` }));
+  const typeSegments = metrics.types
+    .map((type) => ({ id: type.label, label: type.label, tone: type.tone, value: factionTimeMode === 'merged' ? mergedTypeTime[type.label] : type.minutes }))
+    .sort((a, b) => b.value - a.value)
+    .map((type, index) => ({ id: type.id, label: type.label, value: type.value, color: `color-mix(in srgb,var(--dashboard-${type.tone}) ${58 + index % 4 * 10}%,${index % 2 ? 'var(--color-paper)' : 'var(--color-ink)'})` }));
   const allocationSegments = allocationDimension === 'tone' ? colorSegments : typeSegments;
   const allocationMethodLabel = allocationDimension === 'tone'
     ? `按颜色阵营分配 · ${factionTimeMode === 'merged' ? '同阵营重叠去重' : '逐任务耗时累计'}`
@@ -887,6 +894,10 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
   useEffect(() => {
     window.sessionStorage.setItem(FACTION_TIME_MODE_SESSION_KEY, factionTimeMode);
   }, [factionTimeMode]);
+
+  useEffect(() => {
+    window.sessionStorage.setItem(ALLOCATION_DIMENSION_SESSION_KEY, allocationDimension);
+  }, [allocationDimension]);
 
   useEffect(() => {
     window.sessionStorage.setItem(GRACE_SESSION_KEY, String(graceMinutes));
