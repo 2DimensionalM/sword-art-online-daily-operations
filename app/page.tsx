@@ -267,7 +267,7 @@ function transitionTask(task: Task, next: Status): Task {
   const now = new Date().toISOString();
   if (next === 'pending') return { ...task, status: next, startedAt: task.recurrenceStartTime ? dateAtLocalTime(new Date(), task.recurrenceStartTime) : '', completedAt: '', manualOrder: null };
   if (next === 'inProgress') return { ...task, status: next, startedAt: now, completedAt: '', manualOrder: null };
-  return { ...task, status: next, startedAt: task.startedAt || now, completedAt: now, manualOrder: null };
+  return { ...task, status: next, startedAt: task.startedAt || now, completedAt: task.completedAt || now, manualOrder: null };
 }
 
 function shouldGenerate(task: Task, now: Date) {
