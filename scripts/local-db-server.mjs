@@ -734,11 +734,14 @@ function sendJson(response, status, value, origin = '') {
 }
 
 async function readJson(request) {
-  let body = '';
+  const chunks = [];
+  let totalLength = 0;
   for await (const chunk of request) {
-    body += chunk;
-    if (body.length > 2_000_000) throw new Error('Request body is too large');
+    chunks.push(chunk);
+    totalLength += chunk.length;
+    if (totalLength > 2_000_000) throw new Error('Request body is too large');
   }
+  const body = Buffer.concat(chunks).toString('utf-8');
   return JSON.parse(body || '{}');
 }
 
