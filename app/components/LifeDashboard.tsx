@@ -138,6 +138,20 @@ function startOfWeek(date: Date) {
   return result;
 }
 
+function countCalendarDays(start: Date, end: Date) {
+  const utcStart = Date.UTC(start.getFullYear(), start.getMonth(), start.getDate());
+  const utcEnd = Date.UTC(end.getFullYear(), end.getMonth(), end.getDate());
+  return Math.round((utcEnd - utcStart) / DAY_MS);
+}
+
+function elapsedCalendarDays(period: CampaignPeriod, now: Date) {
+  const totalDays = Math.max(1, countCalendarDays(period.start, period.end));
+  if (+now >= +period.end) return totalDays;
+  if (+now < +period.start) return 1;
+  const currentDays = countCalendarDays(period.start, startOfDay(now)) + 1;
+  return Math.max(1, Math.min(totalDays, currentDays));
+}
+
 function startOfPeriod(date: Date, scale: DashboardCampaignScale) {
   if (scale === 'week') return startOfWeek(date);
   if (scale === 'month') return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -160,7 +174,7 @@ function formatPeriod(start: Date, scale: DashboardCampaignScale) {
     thursday.setDate(thursday.getDate() + 3);
     const isoYear = thursday.getFullYear();
     const weekOne = startOfWeek(new Date(isoYear, 0, 4));
-    const week = Math.round((+start - +weekOne) / (7 * DAY_MS)) + 1;
+    const week = Math.round(countCalendarDays(weekOne, start) / 7) + 1;
     return {
       label: `${isoYear} W${String(week).padStart(2, '0')} · ${start.getMonth() + 1}/${start.getDate()}—${end.getMonth() + 1}/${end.getDate()}`,
       compactLabel: `${isoYear} W${String(week).padStart(2, '0')}`,
@@ -360,17 +374,16 @@ function periodMetrics(period: CampaignPeriod, tasks: DashboardTask[], events: D
   const completedFitness = completedTasks.filter((task) => FITNESS_TYPE_PATTERN.test(task.taskType)).length;
   const completedMeditation = completedTasks.filter((task) => MEDITATION_TYPE_PATTERN.test(task.taskType)).length;
   const cancellations = deletionEvents.filter((event) => inPeriod(event.deletedAt, period));
-  const effectiveEnd = Math.min(+period.end, +now);
-  const elapsedDays = Math.max(1, Math.ceil((effectiveEnd - +period.start) / DAY_MS));
+  const elapsedDays = elapsedCalendarDays(period, now);
   const equivalentWeeks = Math.max(1, elapsedDays / 7);
   const activeMissionDays = new Set<string>();
   trackedTasks.forEach((task) => {
     const interval = trackedInterval(task, period, now);
     if (!interval) return;
-    let cursor = startOfDay(new Date(interval.start));
+    const cursor = startOfDay(new Date(interval.start));
     while (+cursor < interval.end) {
       activeMissionDays.add(dateKey(cursor));
-      cursor = new Date(+cursor + DAY_MS);
+      cursor.setDate(cursor.getDate() + 1);
     }
   });
   completedTasks.forEach((task) => {
@@ -578,7 +591,7 @@ export function LifeDashboard({ goalRadar, username, now, tasks, sleepRecords, d
     : `按任务类型分配 · ${factionTimeMode === 'merged' ? '同类型重叠去重' : '逐任务耗时累计'}`;
   const rankedTypes = [...metrics.types].sort((a, b) => typeRankMode === 'total' ? b.minutes - a.minutes : b.average - a.average);
   const maxTypeMetric = Math.max(1, ...rankedTypes.map((type) => typeRankMode === 'total' ? type.minutes : type.average));
-  const periodDays = Math.round((+period.end - +period.start) / DAY_MS);
+  const periodDays = Math.max(1, countCalendarDays(period.start, period.end));
   const rollingWindowLabel = scale === 'week' ? 'ROLLING 12 WEEKS' : scale === 'month' ? 'ROLLING 12 MONTHS' : 'ROLLING 4 QUARTERS';
   const graceLabel = GRACE_OPTIONS.find((option) => option.value === graceMinutes)?.label ?? '1H';
   const overviewStats: { id: OverviewMetricId; code: string; label: string; value: string; unit: string; note: string; tone: string }[] = [
