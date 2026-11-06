@@ -870,7 +870,7 @@ function CancellationRemovalDialog({ event, busy, onCancel, onConfirm }: {
     if (mouseEvent.currentTarget === mouseEvent.target && !busy) onCancel();
   }}>
     <section className="cancellation-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancellation-confirm-title" aria-describedby="cancellation-confirm-description">
-      <header><span>DATABASE WARNING / 04</span><strong id="cancellation-confirm-title">REMOVE CANCELLATION LOG?</strong><button type="button" className="selector-close-button" aria-label={adding ? '取消添加' : '取消删除'} disabled={busy} onClick={onCancel}>×</button></header>
+      <header><span>DATABASE WARNING / 04</span><strong id="cancellation-confirm-title">REMOVE CANCELLATION LOG?</strong><button type="button" className="selector-close-button" aria-label="取消删除" disabled={busy} onClick={onCancel}>×</button></header>
       <div className="cancellation-confirm-body">
         <div className="cancellation-confirm-signal" aria-hidden="true"><span>!</span><strong>NO<br />UNDO</strong></div>
         <div className="cancellation-confirm-copy"><span>FINAL CHECK / 最终确认</span><h3>{event.title}</h3><p id="cancellation-confirm-description">这会从本地 SQLite 中永久删除该条取消留痕，并改变首页的取消统计。此操作不会恢复原任务；如需找回，请先在留痕列表点击复原。</p><dl><div><dt>TYPE</dt><dd>{event.taskType}</dd></div><div><dt>STATUS</dt><dd>{statusLabel(event.status)}</dd></div><div><dt>DELETED</dt><dd>{formatTime(event.deletedAt)}</dd></div></dl></div>
