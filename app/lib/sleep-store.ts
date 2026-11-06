@@ -23,7 +23,7 @@ export function loadSleepRecords() {
   return request<SleepRecord[]>();
 }
 
-export function createSleepRecord(record: Pick<SleepRecord, 'id' | 'sleepStartedAt' | 'wakeAt'>) {
+export function createSleepRecord(record: Pick<SleepRecord, 'id' | 'sleepStartedAt' | 'wakeAt'> & { confirmSameWakeDay?: boolean }) {
   return request<SleepRecord[]>(SLEEP_RECORDS_URL, { method: 'POST', body: JSON.stringify(record) });
 }
 

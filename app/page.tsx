@@ -870,7 +870,7 @@ function CancellationRemovalDialog({ event, busy, onCancel, onConfirm }: {
     if (mouseEvent.currentTarget === mouseEvent.target && !busy) onCancel();
   }}>
     <section className="cancellation-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="cancellation-confirm-title" aria-describedby="cancellation-confirm-description">
-      <header><span>DATABASE WARNING / 04</span><strong id="cancellation-confirm-title">REMOVE CANCELLATION LOG?</strong><button type="button" className="selector-close-button" aria-label="取消删除" disabled={busy} onClick={onCancel}>×</button></header>
+      <header><span>DATABASE WARNING / 04</span><strong id="cancellation-confirm-title">REMOVE CANCELLATION LOG?</strong><button type="button" className="selector-close-button" aria-label={adding ? '取消添加' : '取消删除'} disabled={busy} onClick={onCancel}>×</button></header>
       <div className="cancellation-confirm-body">
         <div className="cancellation-confirm-signal" aria-hidden="true"><span>!</span><strong>NO<br />UNDO</strong></div>
         <div className="cancellation-confirm-copy"><span>FINAL CHECK / 最终确认</span><h3>{event.title}</h3><p id="cancellation-confirm-description">这会从本地 SQLite 中永久删除该条取消留痕，并改变首页的取消统计。此操作不会恢复原任务；如需找回，请先在留痕列表点击复原。</p><dl><div><dt>TYPE</dt><dd>{event.taskType}</dd></div><div><dt>STATUS</dt><dd>{statusLabel(event.status)}</dd></div><div><dt>DELETED</dt><dd>{formatTime(event.deletedAt)}</dd></div></dl></div>
@@ -880,7 +880,8 @@ function CancellationRemovalDialog({ event, busy, onCancel, onConfirm }: {
   </div>;
 }
 
-function SleepRemovalDialog({ record, busy, error, returnFocus, onCancel, onConfirm }: {
+function SleepRemovalDialog({ record, busy, error, returnFocus, onCancel, onConfirm, adding = false }: {
+  adding?: boolean;
   record: SleepRecord;
   busy: boolean;
   error: string;
@@ -913,14 +914,14 @@ function SleepRemovalDialog({ record, busy, error, returnFocus, onCancel, onConf
     if (event.currentTarget === event.target && !busy) onCancel();
   }}>
     <section ref={dialogRef} className="sleep-remove-dialog" role="alertdialog" aria-modal="true" aria-labelledby="sleep-remove-title" aria-describedby="sleep-remove-description">
-      <header><span>03 / NIGHT LOG</span><button type="button" aria-label="取消删除" disabled={busy} onClick={onCancel}>×</button></header>
+      <header><span>03 / NIGHT LOG</span><button type="button" aria-label={adding ? '取消添加' : '取消删除'} disabled={busy} onClick={onCancel}>×</button></header>
       <div className="sleep-remove-body">
-        <h3 id="sleep-remove-title">删除这条睡眠记录？</h3>
+        <h3 id="sleep-remove-title">{adding ? '同一天已有睡眠记录' : '删除这条睡眠记录？'}</h3>
         <div className="sleep-remove-summary"><strong>{wakeDay.replaceAll('-', ' / ')}</strong><span>{formatSleepDateTime(record.sleepStartedAt)} → {formatSleepDateTime(record.wakeAt)}</span></div>
-        <p id="sleep-remove-description">删除后无法在应用中撤销。</p>
+        <p id="sleep-remove-description">{adding ? '确认后会新增这条睡眠记录，已有记录会保留。' : '删除后无法在应用中撤销。'}</p>
         {error && <p className="sleep-remove-error" role="alert">{error}</p>}
       </div>
-      <footer><button type="button" className="sleep-remove-keep" disabled={busy} onClick={onCancel} autoFocus>保留记录</button><button type="button" className="sleep-remove-confirm" disabled={busy} onClick={onConfirm}>{busy ? '删除中…' : '确认删除'}</button></footer>
+      <footer><button type="button" className="sleep-remove-keep" disabled={busy} onClick={onCancel} autoFocus>{adding ? '取消' : '保留记录'}</button><button type="button" className={adding ? 'sleep-add-confirm' : 'sleep-remove-confirm'} disabled={busy} onClick={onConfirm}>{busy ? (adding ? '保存中…' : '删除中…') : (adding ? '确认添加' : '确认删除')}</button></footer>
     </section>
   </div>;
 }
@@ -1460,6 +1461,7 @@ export default function Home() {
   const [taskDeletionEvents, setTaskDeletionEvents] = useState<TaskDeletionEvent[]>([]);
   const [sleepLoading, setSleepLoading] = useState(true);
   const [sleepSubmitting, setSleepSubmitting] = useState(false);
+  const [sleepAdditionTarget, setSleepAdditionTarget] = useState<SleepRecord | null>(null);
   const [sleepError, setSleepError] = useState<{ message: string; sequence: number } | null>(null);
   const [sleepRemovalTarget, setSleepRemovalTarget] = useState<SleepRecord | null>(null);
   const [sleepRemovalBusy, setSleepRemovalBusy] = useState(false);
@@ -2158,19 +2160,28 @@ export default function Home() {
       showSleepError('醒来时间必须晚于入睡时间。请重新确认时间。');
       return;
     }
-    const wakeDay = localDateKey(awakenedAt);
-    if (sleepRecords.some((record) => localDateKey(new Date(record.wakeAt)) === wakeDay)) {
-      showSleepError(`${wakeDay.replaceAll('-', ' / ')} 已有睡眠记录；每个醒来日期只能保存一条。`);
+    const record = { id: crypto.randomUUID(), sleepStartedAt: startedAt.toISOString(), wakeAt: awakenedAt.toISOString(), createdAt: '', updatedAt: '' };
+    if (sleepRecords.some((item) => localDateKey(new Date(item.wakeAt)) === localDateKey(awakenedAt))) {
+      setSleepAdditionTarget(record);
       return;
     }
+    await saveSleepRecord(record, false);
+  };
+  const saveSleepRecord = async (record: SleepRecord, confirmed: boolean) => {
     setSleepError(null);
     setSleepSubmitting(true);
     try {
-      const records = await createSleepRecord({ id: crypto.randomUUID(), sleepStartedAt: startedAt.toISOString(), wakeAt: awakenedAt.toISOString() });
+      const records = await createSleepRecord({ ...record, confirmSameWakeDay: confirmed });
       setSleepRecords(records);
+      setSleepAdditionTarget(null);
       setToast('NIGHT LOG SAVED · 夜间状态已归档');
     } catch (error) {
-      showSleepError(error instanceof Error ? error.message : '睡眠档案保存失败');
+      if (error instanceof Error && error.message.includes('已有睡眠记录，请确认后继续保存')) {
+        setSleepAdditionTarget(record);
+      } else {
+        setSleepAdditionTarget(null);
+        showSleepError(error instanceof Error ? error.message : '睡眠档案保存失败');
+      }
     } finally {
       setSleepSubmitting(false);
     }
@@ -2658,7 +2669,7 @@ export default function Home() {
           })}</div>{sleepDisplayMode === 'standard' && sleepTimelineRecords.length > SLEEP_STANDARD_LIMIT && <button type="button" className="sleep-rhythm-expand" aria-expanded={sleepStandardExpanded} onClick={() => setSleepStandardExpanded((expanded) => !expanded)}><span>{sleepStandardExpanded ? '收起较早记录' : `展开其余 ${sleepTimelineRecords.length - SLEEP_STANDARD_LIMIT} 晚`}</span><strong>{sleepStandardExpanded ? 'COLLAPSE ↑' : 'REVEAL ARCHIVE ↓'}</strong></button>}</> : <div className="sleep-rhythm-empty"><i>☾</i><strong>NO REST SIGNALS YET</strong><span>记录第一晚睡眠后，完整节律会显示在这里。</span></div>}
         </section>
         <aside className="sleep-rhythm-log">
-          <header><span>LOG ENTRY</span><h3>LOG<br />REST</h3><p>记录入睡与醒来时间。按醒来日期每天一条。</p></header>
+          <header><span>LOG ENTRY</span><h3>LOG<br />REST</h3><p>记录入睡与醒来时间。同一天可以记录多次睡眠。</p></header>
           <form onSubmit={submitSleepRecord}>
             <button type="button" className="sleep-rhythm-picker sleep-start-trigger" onClick={() => openSleepPicker('sleepStartedAt')}><span>01 · SLEEP START</span><strong>{sleepStartedAt.slice(11)}</strong><small>{sleepStartedAt.slice(0, 10).replaceAll('-', ' / ')} · SET TIME</small></button>
             <button type="button" className="sleep-rhythm-picker wake-trigger" onClick={() => openSleepPicker('wakeAt')}><span>02 · WAKE SIGNAL</span><strong>{wakeAt.slice(11)}</strong><small>{wakeAt.slice(0, 10).replaceAll('-', ' / ')} · SET TIME</small></button>
@@ -2738,6 +2749,7 @@ export default function Home() {
     {!lockinTaskId && <SignalTicker signals={signals} />}
     {pendingSignalView && <DiscardSignalDialog onKeep={() => setPendingSignalView(null)} onDiscard={() => { setSignalDirty(false); navigateTo(pendingSignalView, undefined, true); setPendingSignalView(null); }} />}
     {cancellationRemovalTarget && <CancellationRemovalDialog event={cancellationRemovalTarget} busy={cancellationRemovalBusy} onCancel={() => setCancellationRemovalTarget(null)} onConfirm={() => void removeCancellationEvent()} />}
+    {sleepAdditionTarget && <SleepRemovalDialog adding record={sleepAdditionTarget} busy={sleepSubmitting} error="" returnFocus={null} onCancel={() => setSleepAdditionTarget(null)} onConfirm={() => void saveSleepRecord(sleepAdditionTarget, true)} />}
     {sleepRemovalTarget && <SleepRemovalDialog record={sleepRemovalTarget} busy={sleepRemovalBusy} error={sleepRemovalError} returnFocus={sleepRemovalTrigger} onCancel={() => setSleepRemovalTarget(null)} onConfirm={() => void deleteSleepRecord()} />}
 
     {impact && !lockinTaskId && <div className={`impact-feedback impact-${impact.tier ?? 'action'}`}><div className="impact-rays" /><span>{impact.title}</span><strong>{impact.subtitle}</strong></div>}

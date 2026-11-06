@@ -451,7 +451,7 @@ function createSleepRecord(payload) {
       && existing.getMonth() === wake.getMonth()
       && existing.getDate() === wake.getDate();
   });
-  if (alreadyLogged) throw new Error(`${wakeDay} 已有睡眠记录；每个醒来日期只能保存一条`);
+  if (alreadyLogged && payload.confirmSameWakeDay !== true) throw new Error(`${wakeDay} 已有睡眠记录，请确认后继续保存`);
   const now = new Date().toISOString();
   insertSleepRecord.run(id, start.toISOString(), wake.toISOString(), now, now);
   return getSleepRecords();

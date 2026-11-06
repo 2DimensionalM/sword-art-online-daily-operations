@@ -1903,3 +1903,7 @@ body:has(.game-menu.is-open),body:has(.game-menu.is-closing) { overflow:hidden; 
   .sleep-remove-body { padding:9px 14px 14px; }
   .sleep-remove-dialog>footer { padding:10px 14px 14px; }
 }
+
+.sleep-add-confirm { color:var(--paper); background:var(--ink); }
+.sleep-add-confirm:hover,.sleep-add-confirm:focus-visible { color:var(--ink); background:var(--color-signal); }
+.theme-night .sleep-add-confirm { color:#080806; background:var(--night-gold); border-color:var(--night-line); }
